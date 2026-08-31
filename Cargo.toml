@@ -1,0 +1,10 @@
+[package]
+name = "rpwalletmgr"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rp235x-hal = { version = "0.4", features = ["binary-info", "critical-section-impl", "rt"] }
+embedded-hal = "1.0"
+panic-halt = "1.0"
+pio = "0.3"
