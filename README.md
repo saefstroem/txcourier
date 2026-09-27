@@ -1,4 +1,4 @@
-# rp2350wallet
+# txcourier
 
 An air-gapped transaction courier built on a Waveshare RP2350-USB-A.
 

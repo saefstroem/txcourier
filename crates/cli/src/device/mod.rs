@@ -9,7 +9,7 @@ pub use result::Result;
 
 use std::path::Path;
 
-use rp2350wallet_protocol::wire::{Request, Response};
+use txcourier_protocol::wire::{Request, Response};
 
 /// Transmit a request on a path and wait for response
 pub fn ask(path: &Path, request: Request) -> Result<Response> {
@@ -22,7 +22,7 @@ pub fn ask(path: &Path, request: Request) -> Result<Response> {
 mod tests {
     use std::path::Path;
 
-    use rp2350wallet_protocol::wire::Request;
+    use txcourier_protocol::wire::Request;
 
     use super::ask;
 

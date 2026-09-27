@@ -63,8 +63,17 @@ impl Descriptor {
     }
 }
 
-/// Validate whether a token descriptor describes an address at a certain chain id
-pub fn describes(descriptor: &[u8], address: &[u8; ADDRESS_LEN], chain_id: u64) -> Result<()> {
+/// What a token descriptor says: its ticker, contract, decimals and chain
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Summary<'a> {
+    pub ticker: &'a [u8],
+    pub contract: [u8; ADDRESS_LEN],
+    pub decimals: u32,
+    pub chain_id: u64,
+}
+
+/// Read a token descriptor's fields, after checking it is shaped like one
+pub fn summarize(descriptor: &[u8]) -> Result<Summary<'_>> {
     let Some(&ticker_len) = descriptor.get(TICKER_LEN_AT) else {
         return Err(Error::DescriptorMalformed);
     };
@@ -95,22 +104,42 @@ pub fn describes(descriptor: &[u8], address: &[u8; ADDRESS_LEN], chain_id: u64) 
         return Err(Error::DescriptorMalformed);
     }
 
-    // Ensure the address matches
-    let Some(found) = descriptor.get(address_at..decimals_at) else {
+    let (Some(ticker), Some(contract), Some(decimals), Some(chain)) = (
+        descriptor.get(TICKER_LEN_AT + 1..address_at),
+        descriptor.get(address_at..decimals_at),
+        descriptor.get(decimals_at..chain_at),
+        descriptor.get(chain_at..signature_at),
+    ) else {
         return Err(Error::DescriptorMalformed);
     };
-    if found != address {
+
+    let (Ok(contract), Ok(decimals), Ok(chain)) = (
+        <[u8; ADDRESS_LEN]>::try_from(contract),
+        <[u8; DECIMALS_LEN]>::try_from(decimals),
+        <[u8; CHAIN_ID_LEN]>::try_from(chain),
+    ) else {
+        return Err(Error::DescriptorMalformed);
+    };
+
+    Ok(Summary {
+        ticker,
+        contract,
+        decimals: u32::from_be_bytes(decimals),
+        chain_id: u64::from(u32::from_be_bytes(chain)),
+    })
+}
+
+/// Validate whether a token descriptor describes an address at a certain chain id
+pub fn describes(descriptor: &[u8], address: &[u8; ADDRESS_LEN], chain_id: u64) -> Result<()> {
+    let summary = summarize(descriptor)?;
+
+    // Ensure the address matches
+    if summary.contract != *address {
         return Err(Error::DescriptorAddressMismatch);
     }
 
     // Ensure the chain matches
-    let Some(chain) = descriptor.get(chain_at..signature_at) else {
-        return Err(Error::DescriptorMalformed);
-    };
-    let Ok(chain) = <[u8; CHAIN_ID_LEN]>::try_from(chain) else {
-        return Err(Error::DescriptorMalformed);
-    };
-    if u64::from(u32::from_be_bytes(chain)) != chain_id {
+    if summary.chain_id != chain_id {
         return Err(Error::DescriptorChainMismatch);
     }
 
@@ -122,7 +151,9 @@ mod tests {
     use super::DESCRIPTOR_MAX;
     use super::Descriptor;
     use super::Error;
+    use super::Summary;
     use super::describes;
+    use super::summarize;
 
     const USDT: [u8; 20] = [
         0xda, 0xc1, 0x7f, 0x95, 0x8d, 0x2e, 0xe5, 0x23, 0xa2, 0x20, 0x62, 0x06, 0x99, 0x45, 0x97,
@@ -212,5 +243,43 @@ mod tests {
         let mut bytes = usdt_descriptor();
         bytes[0] = 0xFF;
         assert_eq!(describes(&bytes, &USDT, 1), Err(Error::DescriptorMalformed));
+    }
+
+    #[test]
+    fn a_descriptor_summarizes_to_its_ticker_contract_decimals_and_chain() {
+        let descriptor = usdt_descriptor();
+        assert_eq!(
+            summarize(&descriptor),
+            Ok(Summary {
+                ticker: b"USDT",
+                contract: USDT,
+                decimals: 6,
+                chain_id: 1,
+            })
+        );
+    }
+
+    #[test]
+    fn a_misshapen_descriptor_does_not_summarize() {
+        let mut too_long = usdt_descriptor();
+        too_long.push(0x00);
+        assert_eq!(summarize(&too_long), Err(Error::DescriptorMalformed));
+
+        let short = usdt_descriptor();
+        assert_eq!(
+            summarize(&short[..short.len() - 1]),
+            Err(Error::DescriptorMalformed)
+        );
+        assert_eq!(summarize(&[]), Err(Error::DescriptorMalformed));
+    }
+
+    #[test]
+    fn describing_agrees_with_the_summary() {
+        let descriptor = usdt_descriptor();
+        let summary = summarize(&descriptor).expect("well formed");
+        assert_eq!(
+            describes(&descriptor, &summary.contract, summary.chain_id),
+            Ok(())
+        );
     }
 }

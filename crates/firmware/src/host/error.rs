@@ -1,10 +1,10 @@
 use rp235x_hal as hal;
 
 use hal::pio::InstallError;
-use rp2350wallet_pio_usb::Error as PacketError;
-use rp2350wallet_protocol::ledger::STATUS_DENIED;
-use rp2350wallet_protocol::wire::Refusal;
-use rp2350wallet_protocol::{ledger, transaction};
+use txcourier_pio_usb::Error as PacketError;
+use txcourier_protocol::ledger::STATUS_DENIED;
+use txcourier_protocol::wire::Refusal;
+use txcourier_protocol::{ledger, transaction};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Error {

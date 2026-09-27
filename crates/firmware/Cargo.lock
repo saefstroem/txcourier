@@ -735,32 +735,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rp2350wallet-firmware"
-version = "0.1.0"
-dependencies = [
- "embedded-hal 1.0.0",
- "rp2350wallet-pio-usb",
- "rp2350wallet-protocol",
- "rp235x-hal",
- "usb-device",
-]
-
-[[package]]
-name = "rp2350wallet-pio-usb"
-version = "0.1.0"
-dependencies = [
- "pio",
- "thiserror",
-]
-
-[[package]]
-name = "rp2350wallet-protocol"
-version = "0.1.0"
-dependencies = [
- "thiserror",
-]
-
-[[package]]
 name = "rp235x-hal"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -968,6 +942,32 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.6",
+]
+
+[[package]]
+name = "txcourier-firmware"
+version = "0.1.0"
+dependencies = [
+ "embedded-hal 1.0.0",
+ "rp235x-hal",
+ "txcourier-pio-usb",
+ "txcourier-protocol",
+ "usb-device",
+]
+
+[[package]]
+name = "txcourier-pio-usb"
+version = "0.1.0"
+dependencies = [
+ "pio",
+ "thiserror",
+]
+
+[[package]]
+name = "txcourier-protocol"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
 ]
 
 [[package]]

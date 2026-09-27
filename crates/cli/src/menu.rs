@@ -1,11 +1,12 @@
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
-use rp2350wallet_protocol::wire::Slot;
+use txcourier_protocol::wire::Slot;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
     Status,
-    Push,
+    SendNative,
+    SendToken,
     Show(Slot),
     Clear(Slot),
     Provision,
@@ -13,9 +14,10 @@ pub enum Action {
 }
 
 impl Action {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::Status,
-        Self::Push,
+        Self::SendNative,
+        Self::SendToken,
         Self::Show(Slot::Pending),
         Self::Show(Slot::Signed),
         Self::Clear(Slot::Pending),
@@ -29,7 +31,8 @@ impl Display for Action {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Self::Status => f.write_str("Show status"),
-            Self::Push => f.write_str("Push an unsigned transaction"),
+            Self::SendNative => f.write_str("Send the chain's native currency"),
+            Self::SendToken => f.write_str("Send an ERC-20 token"),
             Self::Show(slot) => write!(f, "Show the {} transaction", slot.name()),
             Self::Clear(slot) => write!(f, "Clear the {} transaction", slot.name()),
             Self::Provision => f.write_str("Provision the token table"),
@@ -42,7 +45,7 @@ impl Display for Action {
 mod tests {
     use std::collections::HashSet;
 
-    use rp2350wallet_protocol::wire::Slot;
+    use txcourier_protocol::wire::Slot;
 
     use super::Action;
 

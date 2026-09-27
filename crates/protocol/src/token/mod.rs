@@ -5,7 +5,9 @@ mod result;
 mod table;
 
 pub use descriptor::DESCRIPTOR_MAX;
+pub use descriptor::Summary;
 pub use descriptor::describes;
+pub use descriptor::summarize;
 pub use error::Error;
 pub use record::BLOB_MAX;
 pub use record::decode;

@@ -1,5 +1,5 @@
-use rp2350wallet_protocol::wire;
 use thiserror::Error;
+use txcourier_protocol::wire;
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum Error {

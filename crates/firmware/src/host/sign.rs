@@ -1,9 +1,9 @@
-use rp2350wallet_protocol::ledger::{
+use txcourier_protocol::ledger::{
     CHUNK_MAX, CLASS, Chunks, DEFAULT_ACCOUNT, INSTRUCTION_SIGN, INSTRUCTION_TOKEN_INFO,
     REPORT_LEN, Reassembly, Reports, STATUS_LEN, command, require_ok, signature,
 };
-use rp2350wallet_protocol::transaction::{Unsigned, encode_signed};
-use rp2350wallet_protocol::wire::Packet;
+use txcourier_protocol::transaction::{Unsigned, encode_signed};
+use txcourier_protocol::wire::Packet;
 
 use crate::host::bus::Bus;
 use crate::host::device;

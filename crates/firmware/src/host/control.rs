@@ -1,4 +1,4 @@
-use rp2350wallet_pio_usb::{
+use txcourier_pio_usb::{
     PID_ACK, PID_DATA0, PID_DATA1, PID_IN, PID_NAK, PID_OUT, PID_SETUP, PID_STALL, SETUP_LEN, SYNC,
     Request, data_packet, data_payload, token,
 };

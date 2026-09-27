@@ -38,50 +38,15 @@ pub struct Unsigned<'a> {
 impl<'a> Unsigned<'a> {
     /// Decoded bytes into structured form
     pub fn decode(bytes: &'a [u8]) -> Result<Self> {
-        // Get the tx kind and then the envelope
-        let Some((kind, envelope)) = bytes.split_first() else {
-            return Err(Error::Empty);
-        };
-
-        // We only support eip1559 for now
-        if *kind != TYPE_EIP1559 {
-            return Err(Error::UnsupportedType(*kind));
-        }
-
-        // Extract the envelope as a list
-        let mut fields = decode_exact(envelope)?.list()?;
-
-        // extract typed data
-        let chain_id = unsigned_field(&mut fields)?;
-        let nonce = unsigned_field(&mut fields)?;
-        let max_priority_fee = quantity_field(&mut fields)?;
-        let max_fee = quantity_field(&mut fields)?;
-        let gas_limit = unsigned_field(&mut fields)?;
-        let to = address_field(&mut fields)?;
-        let value = quantity_field(&mut fields)?;
-        let data = next_field(&mut fields)?.bytes()?;
-
-        // we dont support access list
-        let mut access_list = next_field(&mut fields)?.list()?;
-        if access_list.next().is_some() {
-            return Err(Error::AccessListNotEmpty);
-        }
+        let mut fields = envelope_fields(bytes)?;
+        let unsigned = decode_fields(&mut fields)?;
 
         // no more fields should exist
         if fields.next().is_some() {
             return Err(Error::TooManyFields);
         }
 
-        Ok(Self {
-            chain_id,
-            nonce,
-            max_priority_fee,
-            max_fee,
-            gas_limit,
-            to,
-            value,
-            data,
-        })
+        Ok(unsigned)
     }
 
     /// Encoding an unsigned tx is simply to get the envelope encoder
@@ -123,6 +88,50 @@ pub fn envelope_encoder(out: &mut [u8]) -> Result<Encoder<'_>> {
     Ok(Encoder::new(envelope))
 }
 
+pub fn envelope_fields(bytes: &[u8]) -> Result<Items<'_>> {
+    // Get the tx kind and then the envelope
+    let Some((kind, envelope)) = bytes.split_first() else {
+        return Err(Error::Empty);
+    };
+
+    // We only support eip1559 for now
+    if *kind != TYPE_EIP1559 {
+        return Err(Error::UnsupportedType(*kind));
+    }
+
+    // Extract the envelope as a list
+    Ok(decode_exact(envelope)?.list()?)
+}
+
+pub fn decode_fields<'a>(fields: &mut Items<'a>) -> Result<Unsigned<'a>> {
+    // extract typed data
+    let chain_id = unsigned_field(fields)?;
+    let nonce = unsigned_field(fields)?;
+    let max_priority_fee = quantity_field(fields)?;
+    let max_fee = quantity_field(fields)?;
+    let gas_limit = unsigned_field(fields)?;
+    let to = address_field(fields)?;
+    let value = quantity_field(fields)?;
+    let data = next_field(fields)?.bytes()?;
+
+    // we dont support access list
+    let mut access_list = next_field(fields)?.list()?;
+    if access_list.next().is_some() {
+        return Err(Error::AccessListNotEmpty);
+    }
+
+    Ok(Unsigned {
+        chain_id,
+        nonce,
+        max_priority_fee,
+        max_fee,
+        gas_limit,
+        to,
+        value,
+        data,
+    })
+}
+
 /// Retrieves the next field within the list to be encoded
 fn next_field<'a>(fields: &mut Items<'a>) -> Result<Item<'a>> {
     match fields.next() {
@@ -132,7 +141,7 @@ fn next_field<'a>(fields: &mut Items<'a>) -> Result<Item<'a>> {
 }
 
 /// Encodes some bytes as u64
-fn unsigned_field(fields: &mut Items<'_>) -> Result<u64> {
+pub fn unsigned_field(fields: &mut Items<'_>) -> Result<u64> {
     // get the bytes to be encoded
     let bytes = canonical_integer(next_field(fields)?.bytes()?)?;
     // ensure max len
@@ -149,7 +158,7 @@ fn unsigned_field(fields: &mut Items<'_>) -> Result<u64> {
 }
 
 /// Encode next field into quantity
-fn quantity_field<'a>(fields: &mut Items<'a>) -> Result<&'a [u8]> {
+pub fn quantity_field<'a>(fields: &mut Items<'a>) -> Result<&'a [u8]> {
     let bytes = canonical_integer(next_field(fields)?.bytes()?)?;
     if bytes.len() > QUANTITY_MAX_LEN {
         return Err(Error::IntegerTooLarge);

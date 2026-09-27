@@ -1,9 +1,9 @@
-use rp2350wallet_protocol::slots::Occupancy;
-use rp2350wallet_protocol::store::{
+use txcourier_protocol::slots::Occupancy;
+use txcourier_protocol::store::{
     TOKEN_TABLE_RECORD_LEN, Kind, Record, SLOT_RECORD_LEN, Slot, decode, encode, scan,
 };
-use rp2350wallet_protocol::token::Tokens;
-use rp2350wallet_protocol::token::decode as decode_tokens;
+use txcourier_protocol::token::Tokens;
+use txcourier_protocol::token::decode as decode_tokens;
 
 use crate::storage::error::Error;
 use crate::storage::flash::{Flash, Region};

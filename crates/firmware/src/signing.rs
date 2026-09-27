@@ -1,8 +1,8 @@
-use rp2350wallet_protocol::ledger::STATUS_DENIED;
-use rp2350wallet_protocol::transaction::Unsigned;
-use rp2350wallet_protocol::transfer::{Transfer, classify};
-use rp2350wallet_protocol::wire::{Refusal, TRANSACTION_CAPACITY};
-use rp2350wallet_protocol::{BUS_SAMPLES, ledger};
+use txcourier_protocol::ledger::STATUS_DENIED;
+use txcourier_protocol::transaction::Unsigned;
+use txcourier_protocol::transfer::{Transfer, classify};
+use txcourier_protocol::wire::{Refusal, TRANSACTION_CAPACITY};
+use txcourier_protocol::{BUS_SAMPLES, ledger};
 
 use crate::error::Error;
 use crate::host::Bus;

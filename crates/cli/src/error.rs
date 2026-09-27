@@ -1,9 +1,10 @@
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 
-use rp2350wallet_protocol::wire::Refusal;
-use rp2350wallet_protocol::{token, wire};
+use alloy::primitives::B256;
 use thiserror::Error;
+use txcourier_protocol::wire::Refusal;
+use txcourier_protocol::{policy, token, transaction, transfer, wire};
 
 use crate::device;
 
@@ -21,8 +22,32 @@ pub enum Error {
     TokenLine { number: usize, reason: String },
     #[error("cannot read {path}: {reason}")]
     Unreadable { path: String, reason: String },
-    #[error("{0} is not an even-length hex string")]
-    NotHex(String),
+    #[error(transparent)]
+    Transaction(#[from] transaction::Error),
+    #[error(transparent)]
+    Transfer(#[from] transfer::Error),
+    #[error("the courier would refuse this transaction: {0}")]
+    Policy(#[from] policy::Error),
+    #[error("cannot start the network runtime: {0}")]
+    Runtime(String),
+    #[error("the node refused: {0}")]
+    NodeRefused(String),
+    #[error("{0}")]
+    Transport(String),
+    #[error("no answer within {millis} ms")]
+    NoAnswer { millis: u128 },
+    #[error("the node answered with hash {answered}, but the transaction hashes to {expected}")]
+    HashMismatch { answered: B256, expected: B256 },
+    #[error("the fee history has no base fee")]
+    NoBaseFee,
+    #[error("no node is known for chain {0}, so it cannot be published from here")]
+    NoNode(u64),
+    #[error("no node accepted the transaction")]
+    NotPublished,
+    #[error(
+        "no node confirmed the transaction, but it may have gone out: check {0} before signing a replacement; publishing this one again is safe"
+    )]
+    Unconfirmed(String),
     #[error("the prompt failed: {0}")]
     Prompt(String),
     #[error("interrupted")]
@@ -42,7 +67,7 @@ fn describe_refusal(refusal: &Refusal, detail: &u16, f: &mut Formatter<'_>) -> F
 
 #[cfg(test)]
 mod tests {
-    use rp2350wallet_protocol::wire::Refusal;
+    use txcourier_protocol::wire::Refusal;
 
     use super::explain;
 

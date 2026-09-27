@@ -1,7 +1,7 @@
 use std::io::{Read, Write};
 use std::time::{Duration, Instant};
 
-use rp2350wallet_protocol::wire::{HEADER_LEN, MAX_FRAME_LEN, Request, Response, frame_len};
+use txcourier_protocol::wire::{HEADER_LEN, MAX_FRAME_LEN, Request, Response, frame_len};
 
 use crate::device::error::Error;
 use crate::device::result::Result;
@@ -75,13 +75,13 @@ mod tests {
     use super::Error;
     use super::receive;
     use super::send;
-    use rp2350wallet_protocol::DeviceState;
-    use rp2350wallet_protocol::wire::MAX_FRAME_LEN;
-    use rp2350wallet_protocol::wire::Request;
-    use rp2350wallet_protocol::wire::Response;
-    use rp2350wallet_protocol::wire::Slot;
     use std::io::Cursor;
     use std::time::Duration;
+    use txcourier_protocol::DeviceState;
+    use txcourier_protocol::wire::MAX_FRAME_LEN;
+    use txcourier_protocol::wire::Request;
+    use txcourier_protocol::wire::Response;
+    use txcourier_protocol::wire::Slot;
 
     const BRIEF: Duration = Duration::from_millis(50);
 

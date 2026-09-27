@@ -6,7 +6,7 @@
 # one sitting and testable without hardware.
 
 [package]
-name = "rp2350wallet-protocol"
+name = "txcourier-protocol"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -6,7 +6,7 @@
 [workspace]
 
 [package]
-name = "rp2350wallet-firmware"
+name = "txcourier-firmware"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
@@ -19,7 +19,7 @@ description = "RP2350 firmware for the air-gapped Ledger transaction courier"
 # untestable fixes it here, per-crate, instead of turning the flag off globally
 # and losing test analysis for the host crates.
 [[bin]]
-name = "rp2350wallet-firmware"
+name = "txcourier-firmware"
 path = "src/main.rs"
 test = false
 bench = false
@@ -28,8 +28,8 @@ bench = false
 rp235x-hal = { version = "0.4", features = ["binary-info", "critical-section-impl", "rt"] }
 embedded-hal = "1.0"
 usb-device = "0.3.2"
-rp2350wallet-protocol = { path = "../protocol" }
-rp2350wallet-pio-usb = { path = "../pio-usb" }
+txcourier-protocol = { path = "../protocol" }
+txcourier-pio-usb = { path = "../pio-usb" }
 
 # There is no `panic-halt`: a halt that leaves the lamp blinking would be a lie.
 # The panic handler in src/main.rs darkens it first.

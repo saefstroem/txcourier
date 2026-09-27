@@ -6,7 +6,7 @@ use rp235x_hal as hal;
 use hal::gpio::bank0::{Gpio0, Gpio4};
 use hal::gpio::{DefaultTypeState, Pin, PinState};
 use hal::pac::{SIO, TIMER0};
-use rp2350wallet_protocol::{DeviceState, FAULT_BYTE, lamp_is_lit};
+use txcourier_protocol::{DeviceState, FAULT_BYTE, lamp_is_lit};
 
 // RP2350 datasheet, SIO GPIO_OUT_SET and GPIO_OUT_CLR: bit n is GPIO n. The LED anode is on
 // GP0.

@@ -1,5 +1,5 @@
-use rp2350wallet_protocol::wire::Refusal;
-use rp2350wallet_protocol::{slots, store};
+use txcourier_protocol::wire::Refusal;
+use txcourier_protocol::{slots, store};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {

@@ -15,7 +15,7 @@ use hal::pio::{
     Tx,
 };
 use hal::timer::CopyableTimer0;
-use rp2350wallet_pio_usb::{
+use txcourier_pio_usb::{
     ACKNOWLEDGE_ENCODED, CRC16_FINAL_XOR, CRC16_INITIAL, CRC16_NIBBLE_TABLE,
     DECODER_CLEAR_INPUT_SHIFT, DECODER_PRELOAD_ONES, DECODER_RESET_LINE_STATE,
     DETECTOR_CYCLES_PER_BIT, DETECTOR_IRQ_DECODER_TRIGGER, DETECTOR_IRQ_END_OF_PACKET,
@@ -24,8 +24,8 @@ use rp2350wallet_pio_usb::{
     decoder_program, decoder_restart_instruction, detector_program, encode_sequence,
     encoded_sequence_len, start_of_frame, transmit_program,
 };
-use rp2350wallet_protocol::BUS_SAMPLES;
-use rp2350wallet_protocol::wire::Packet;
+use txcourier_protocol::BUS_SAMPLES;
+use txcourier_protocol::wire::Packet;
 
 use crate::clocks::{FULL_SPEED_BIT_HZ, SYS_HZ};
 use crate::host::error::Error;

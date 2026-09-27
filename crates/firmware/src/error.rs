@@ -3,7 +3,7 @@ use rp235x_hal as hal;
 use hal::clocks::ClockError;
 use hal::pll::Error as PllError;
 use hal::xosc::Error as XoscError;
-use rp2350wallet_protocol::wire;
+use txcourier_protocol::wire;
 
 use crate::{host, storage, usb};
 

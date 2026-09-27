@@ -3,7 +3,7 @@ use core::slice::from_raw_parts;
 use rp235x_hal as hal;
 
 use hal::rom_data;
-use rp2350wallet_protocol::store::SECTOR_LEN;
+use txcourier_protocol::store::SECTOR_LEN;
 
 // RP2350 datasheet: XIP maps flash at 0x1000_0000. Subtracting it converts a linked address
 // to the flash offset the boot ROM's erase and program calls take.

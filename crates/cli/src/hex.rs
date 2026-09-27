@@ -1,11 +1,26 @@
 use std::str::from_utf8;
 
+use txcourier_protocol::transaction::ADDRESS_LEN;
+
 pub fn of(bytes: &[u8]) -> String {
     bytes
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+pub fn address(bytes: &[u8]) -> String {
+    prefixed(bytes)
+}
+
+pub fn prefixed(bytes: &[u8]) -> String {
+    let digits: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
+    format!("0x{digits}")
+}
+
+pub fn parse_address(text: &str) -> Option<[u8; ADDRESS_LEN]> {
+    parse(text)?.try_into().ok()
 }
 
 pub fn parse(text: &str) -> Option<Vec<u8>> {
@@ -27,8 +42,54 @@ pub fn parse(text: &str) -> Option<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
+    use super::address;
     use super::of;
     use super::parse;
+    use super::parse_address;
+    use super::prefixed;
+
+    const RECIPIENT: [u8; 20] = [
+        0xd8, 0xda, 0x6b, 0xf2, 0x69, 0x64, 0xaf, 0x9d, 0x7e, 0xed, 0x9e, 0x03, 0xe5, 0x34, 0x15,
+        0xd3, 0x7a, 0xa9, 0x60, 0x45,
+    ];
+
+    #[test]
+    fn an_address_prints_as_one_prefixed_lowercase_word() {
+        assert_eq!(
+            address(&RECIPIENT),
+            "0xd8da6bf26964af9d7eed9e03e53415d37aa96045"
+        );
+    }
+
+    #[test]
+    fn an_address_parses_with_or_without_the_prefix_and_in_any_case() {
+        for text in [
+            "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+            "d8da6bf26964af9d7eed9e03e53415d37aa96045",
+            "0xD8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+        ] {
+            assert_eq!(parse_address(text), Some(RECIPIENT), "{text}");
+        }
+    }
+
+    #[test]
+    fn an_address_of_the_wrong_length_is_refused() {
+        assert_eq!(
+            parse_address("0xd8da6bf26964af9d7eed9e03e53415d37aa960"),
+            None
+        );
+        assert_eq!(
+            parse_address("0xd8da6bf26964af9d7eed9e03e53415d37aa9604500"),
+            None
+        );
+        assert_eq!(parse_address("0x"), None);
+    }
+
+    #[test]
+    fn prefixed_bytes_are_one_lowercase_word() {
+        assert_eq!(prefixed(&[0x02, 0xF8, 0x00]), "0x02f800");
+        assert_eq!(prefixed(&[]), "0x");
+    }
 
     #[test]
     fn bytes_are_lowercase_and_space_separated() {

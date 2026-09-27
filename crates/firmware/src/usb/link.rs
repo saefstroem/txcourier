@@ -1,4 +1,4 @@
-use rp2350wallet_protocol::wire::{HEADER_LEN, MAX_FRAME_LEN, frame_len};
+use txcourier_protocol::wire::{HEADER_LEN, MAX_FRAME_LEN, frame_len};
 use usb_device::UsbError;
 use usb_device::bus::{UsbBus, UsbBusAllocator};
 use usb_device::device::{StringDescriptors, UsbDevice, UsbDeviceBuilder, UsbVidPid};

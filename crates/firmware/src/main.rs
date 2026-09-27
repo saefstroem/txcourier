@@ -29,10 +29,10 @@ use hal::gpio::Pins;
 use hal::pac::Peripherals;
 use hal::usb::UsbBus;
 use hal::{Sio, Timer, Watchdog};
-use rp2350wallet_protocol::FAULT_BYTE;
-use rp2350wallet_protocol::policy::approve;
-use rp2350wallet_protocol::token::decode as decode_tokens;
-use rp2350wallet_protocol::wire::{
+use txcourier_protocol::FAULT_BYTE;
+use txcourier_protocol::policy::approve;
+use txcourier_protocol::token::decode as decode_tokens;
+use txcourier_protocol::wire::{
     MAX_FRAME_LEN, Refusal, Request, Response, Slot, TRANSACTION_CAPACITY, Transaction,
 };
 use usb_device::bus::UsbBusAllocator;

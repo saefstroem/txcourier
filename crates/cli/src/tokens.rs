@@ -1,5 +1,5 @@
-use rp2350wallet_protocol::token::{Tokens, describes};
-use rp2350wallet_protocol::transaction::ADDRESS_LEN;
+use txcourier_protocol::token::{Tokens, describes};
+use txcourier_protocol::transaction::ADDRESS_LEN;
 
 use crate::error::Error;
 use crate::hex;

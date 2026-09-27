@@ -1,5 +1,5 @@
-use rp2350wallet_pio_usb::{DESCRIPTOR_CONFIGURATION, DESCRIPTOR_DEVICE, Request};
-use rp2350wallet_protocol::usb::{ApduInterface, Device, Header, verify_apdu_interface};
+use txcourier_pio_usb::{DESCRIPTOR_CONFIGURATION, DESCRIPTOR_DEVICE, Request};
+use txcourier_protocol::usb::{ApduInterface, Device, Header, verify_apdu_interface};
 
 use crate::host::bus::Bus;
 use crate::host::control;
