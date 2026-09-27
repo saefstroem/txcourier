@@ -23,6 +23,10 @@ pub enum Error {
     Unreadable { path: String, reason: String },
     #[error("{0} is not an even-length hex string")]
     NotHex(String),
+    #[error("the prompt failed: {0}")]
+    Prompt(String),
+    #[error("interrupted")]
+    Interrupted,
 }
 
 pub fn explain(refusal: Refusal, detail: u16) -> String {

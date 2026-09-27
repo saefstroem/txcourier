@@ -4,13 +4,14 @@ mod port;
 mod result;
 
 pub use error::Error;
-pub use port::locate;
+pub use port::candidates;
 pub use result::Result;
 
 use std::path::Path;
 
 use rp2350wallet_protocol::wire::{Request, Response};
 
+/// Transmit a request on a path and wait for response
 pub fn ask(path: &Path, request: Request) -> Result<Response> {
     let mut courier = port::open(path)?;
     exchange::send(&mut courier, request)?;

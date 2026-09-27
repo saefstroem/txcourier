@@ -6,20 +6,20 @@ use std::path::{Path, PathBuf};
 use crate::device::error::Error;
 use crate::device::result::Result;
 
-// macOS mounts devfs here. The courier's CDC-ACM node appears in it.
+// mounts devfs here.
 const DEVICE_DIRECTORY: &str = "/dev";
-// macOS names the CDC-ACM callout node cu.usbmodem followed by the device serial. The cu
-// node opens without the carrier detect the tty node waits for.
+// macOS names the CDC-ACM callout node cu.usbmodem followed by the device serial.
 const CALLOUT_PREFIX: &str = "cu.usbmodem";
-// termios VTIME counts tenths of a second. 2 s, which must stay under REPLY_TIMEOUT so one
-// read finishes inside the reply budget.
+// termios VTIME counts tenths of a second. 2 s, which must stay under REPLY_TIMEOUT
 const READ_TIMEOUT_DECISECONDS: u8 = 20;
 
+/// Optimistically determine this is the tx courier
 fn is_courier_port(name: &str) -> bool {
     name.starts_with(CALLOUT_PREFIX)
 }
 
-pub fn locate() -> Result<PathBuf> {
+/// Compute device candidates for where the RP2350 is connected
+pub fn candidates() -> Result<Vec<PathBuf>> {
     let entries = read_dir(DEVICE_DIRECTORY)
         .map_err(|source| Error::DeviceDirectoryUnreadable(source.to_string()))?;
 
@@ -28,6 +28,7 @@ pub fn locate() -> Result<PathBuf> {
     for entry in entries.flatten() {
         let path = entry.path();
 
+        // Check if its the port of the rp2350
         if is_courier_port(path.file_name().and_then(OsStr::to_str).unwrap_or("")) {
             found.push(path);
         }
@@ -35,19 +36,11 @@ pub fn locate() -> Result<PathBuf> {
 
     found.sort();
 
-    match found.as_slice() {
-        [] => Err(Error::NoPortFound),
-        [only] => Ok(only.clone()),
-        several => Err(Error::SeveralPortsFound(
-            several
-                .iter()
-                .map(|path| path.display().to_string())
-                .collect(),
-        )),
-    }
+    Ok(found)
 }
 
 pub fn open(path: &Path) -> Result<File> {
+    // open the file to the tx courier
     let port = OpenOptions::new()
         .read(true)
         .write(true)
@@ -63,22 +56,30 @@ pub fn open(path: &Path) -> Result<File> {
 }
 
 fn make_raw(descriptor: RawFd) -> Result<()> {
+    // create new settings file
     let mut settings = unsafe { std::mem::zeroed::<libc::termios>() };
 
+    // read the ports current settings to the settings struct
     if unsafe { libc::tcgetattr(descriptor, &mut settings) } != 0 {
         return Err(Error::TerminalSettingsUnreadable);
     }
 
+    // remove all kinds of default processing
     unsafe { libc::cfmakeraw(&mut settings) };
 
+    // compute minimum of bytes read before it returns
     let Some(minimum) = settings.c_cc.get_mut(libc::VMIN) else {
         return Err(Error::TerminalSettingsUnwritable);
     };
+
+    // set it to 0 which means we read as soon as we get any bytes
     *minimum = 0;
 
+    // read the timeout configuration
     let Some(timeout) = settings.c_cc.get_mut(libc::VTIME) else {
         return Err(Error::TerminalSettingsUnwritable);
     };
+    // timeout when we are trying to read
     *timeout = READ_TIMEOUT_DECISECONDS;
 
     if unsafe { libc::tcsetattr(descriptor, libc::TCSANOW, &settings) } != 0 {

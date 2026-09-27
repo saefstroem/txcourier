@@ -4,9 +4,11 @@ use rp2350wallet_protocol::transfer::{Transfer, classify};
 use rp2350wallet_protocol::wire::{Refusal, TRANSACTION_CAPACITY};
 use rp2350wallet_protocol::{BUS_SAMPLES, ledger};
 
+use crate::error::Error;
 use crate::host::Bus;
 use crate::host::Error as HostError;
 use crate::host::sign;
+use crate::result::Result;
 use crate::storage::Vault;
 
 // Not fixed by any specification: 100 ms between attachment polls.
@@ -98,7 +100,7 @@ impl SigningAttempts {
         }
     }
 
-    fn run(&mut self, bus: &mut Bus, vault: &mut Vault) -> Result<(), HostError> {
+    fn run(&mut self, bus: &mut Bus, vault: &mut Vault) -> Result<()> {
         let mut unsigned = [0u8; TRANSACTION_CAPACITY];
         let unsigned_len = vault.read_pending(&mut unsigned);
         // read the unsigned transaction
@@ -110,15 +112,14 @@ impl SigningAttempts {
         // attempt to get the signed transaction
         let signed_len = sign(bus, raw, token, &mut signed)?;
 
-        // store signature then append it
-        match vault.replace_pending_with_signed(signed.get(..signed_len).unwrap_or(&[])) {
-            Ok(()) => Ok(()),
-            Err(_) => Err(HostError::ReplyTooLong),
-        }
+        // store the signature: tombstone pending, then append signed
+        vault.replace_pending_with_signed(signed.get(..signed_len).unwrap_or(&[]))?;
+
+        Ok(())
     }
 
-    fn remember(&mut self, error: HostError, now_us: u64) {
-        self.refusal = Some(Refusal::from(error));
+    fn remember(&mut self, error: Error, now_us: u64) {
+        self.refusal = Some(refusal_for(error));
         self.detail = status_of(error);
 
         // If the ledger denied we stop retrying this one and await for it to be 
@@ -133,9 +134,9 @@ impl SigningAttempts {
     }
 }
 
-fn token_for<'a>(raw: &[u8], vault: &'a Vault) -> Result<&'a [u8], HostError> {
+fn token_for<'a>(raw: &[u8], vault: &'a Vault) -> Result<&'a [u8]> {
     let Ok(unsigned) = Unsigned::decode(raw) else {
-        return Err(HostError::NoTokenDescriptor);
+        return Err(Error::Host(HostError::NoTokenDescriptor));
     };
 
     let (chain_id, contract) = match classify(&unsigned) {
@@ -143,13 +144,13 @@ fn token_for<'a>(raw: &[u8], vault: &'a Vault) -> Result<&'a [u8], HostError> {
         Ok(Transfer::Token {
             chain_id, contract, ..
         }) => (chain_id, contract),
-        Err(_) => return Err(HostError::NoTokenDescriptor),
+        Err(_) => return Err(Error::Host(HostError::NoTokenDescriptor)),
     };
 
     vault
         .tokens()
         .and_then(|tokens| tokens.descriptor(chain_id, contract))
-        .ok_or(HostError::NoTokenDescriptor)
+        .ok_or(Error::Host(HostError::NoTokenDescriptor))
 }
 
 fn waiting_for_a_signature(vault: &Vault) -> bool {
@@ -161,9 +162,17 @@ fn attached(bus: &Bus) -> bool {
     data_plus_high == BUS_SAMPLES && data_minus_high == 0
 }
 
-const fn status_of(error: HostError) -> u16 {
+fn refusal_for(error: Error) -> Refusal {
     match error {
-        HostError::Ledger(ledger::Error::Status(status)) => status,
+        Error::Host(error) => Refusal::from(error),
+        Error::Storage(error) => Refusal::from(error),
+        _ => Refusal::LedgerFailed,
+    }
+}
+
+const fn status_of(error: Error) -> u16 {
+    match error {
+        Error::Host(HostError::Ledger(ledger::Error::Status(status))) => status,
         _ => 0,
     }
 }

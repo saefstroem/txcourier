@@ -7,8 +7,6 @@ pub enum Error {
         "no courier found: expected a /dev/cu.usbmodem* device. Is it plugged in and running the firmware?"
     )]
     NoPortFound,
-    #[error("several candidates, pass --port: {}", .0.join(", "))]
-    SeveralPortsFound(Vec<String>),
     #[error("cannot list /dev: {0}")]
     DeviceDirectoryUnreadable(String),
     #[error("cannot open {path}: {reason}")]
