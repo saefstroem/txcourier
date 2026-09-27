@@ -4,7 +4,7 @@ MEMORY {
      *
      * 2 MiB is a safe default here, although a Pico 2 has 4 MiB.
      */
-    FLASH : ORIGIN = 0x10000000, LENGTH = 2048K
+    FLASH : ORIGIN = 0x10000000, LENGTH = 2036K
     /*
      * RAM consists of 8 banks, SRAM0-SRAM7, with a striped mapping.
      * This is usually good for performance, as it distributes load on
@@ -20,6 +20,14 @@ MEMORY {
     SRAM8 : ORIGIN = 0x20080000, LENGTH = 4K
     SRAM9 : ORIGIN = 0x20081000, LENGTH = 4K
 }
+
+__storage_sector_size = 4K;
+__pending_sector = ORIGIN(FLASH) + LENGTH(FLASH);
+__signed_sector = ORIGIN(FLASH) + LENGTH(FLASH) + 4K;
+__token_table_sector = ORIGIN(FLASH) + LENGTH(FLASH) + 8K;
+
+ASSERT(__token_table_sector + 4K == 0x10000000 + 2048K,
+"the three storage sectors must end exactly at the top of flash");
 
 /* # Developer notes
 

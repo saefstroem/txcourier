@@ -1,0 +1,47 @@
+# Its own workspace on purpose — see the comment in the repository root
+# Cargo.toml. Build from this directory:
+#
+#     cargo build --release          # or ./flash.sh via `cargo run --release`
+
+[workspace]
+
+[package]
+name = "rp2350wallet-firmware"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "RP2350 firmware for the air-gapped Ledger transaction courier"
+
+# There is no test harness on a bare-metal target — `libtest` needs an OS — so
+# `cargo check --all-targets` would fail with "can't find crate for `test`".
+# rust-analyzer passes `--all-targets` by default, which would leave a
+# permanent phantom error on this crate in the editor. Declaring the bin as
+# untestable fixes it here, per-crate, instead of turning the flag off globally
+# and losing test analysis for the host crates.
+[[bin]]
+name = "rp2350wallet-firmware"
+path = "src/main.rs"
+test = false
+bench = false
+
+[dependencies]
+rp235x-hal = { version = "0.4", features = ["binary-info", "critical-section-impl", "rt"] }
+embedded-hal = "1.0"
+usb-device = "0.3.2"
+rp2350wallet-protocol = { path = "../protocol" }
+rp2350wallet-pio-usb = { path = "../pio-usb" }
+
+# There is no `panic-halt`: a halt that leaves the lamp blinking would be a lie.
+# The panic handler in src/main.rs darkens it first.
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+opt-level = "s"
+# Symbols cost nothing in flash (they stay in the ELF, not the image) and make
+# a fault actually diagnosable over SWD.
+debug = 2
+panic = "abort"
+# Deliberate: an arithmetic overflow in a wallet is a defect, and here it turns
+# into a panic, which turns into a dark lamp. Silent wrapping would not.
+overflow-checks = true

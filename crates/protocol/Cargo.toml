@@ -1,0 +1,16 @@
+# The shared source of truth between the CLI and the firmware.
+#
+# This crate has ZERO dependencies and must stay that way. It is compiled into
+# both a macOS binary and a bare-metal RISC-V image, and it holds the rules
+# that decide what may be signed — so it needs to be small enough to read in
+# one sitting and testable without hardware.
+
+[package]
+name = "rp2350wallet-protocol"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Wire format, transaction model and validation rules shared by the RP2350 firmware and the CLI"
+
+[dependencies]
+thiserror = { version = "2.0.20", default-features = false }

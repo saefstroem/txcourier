@@ -1,0 +1,23 @@
+#
+# Cargo configuration — RISC-V (Hazard3) only, RP2350.
+#
+
+[build]
+# Default target, so --target can be omitted on every command. This only
+# applies to the firmware workspace; the CLI at the repository root builds for
+# the host as usual.
+target = "riscv32imac-unknown-none-elf"
+
+# Soft-float ABI. Hazard3 has no FPU, so float arguments use integer registers.
+[target.riscv32imac-unknown-none-elf]
+# * --nmagic turns off page alignment of sections (saves flash)
+# * -Trp235x_riscv.x is the RP2350 RISC-V linker script; it pulls in riscv-rt's
+#   link.x itself (the reverse of how the Cortex-M side works)
+rustflags = [
+    "-C", "link-arg=--nmagic",
+    "-C", "link-arg=-Trp235x_riscv.x",
+]
+
+# `cargo run --release` flashes. flash.sh lives at the repository root; cargo
+# invokes the runner with this directory as the working directory.
+runner = "../../flash.sh"

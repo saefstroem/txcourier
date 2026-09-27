@@ -1,0 +1,10 @@
+[package]
+name = "rp2350wallet-pio-usb"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Full-speed USB host bit layer for the RP2350's PIO, derived from Pico-PIO-USB"
+
+[dependencies]
+pio = "0.3"
+thiserror = { version = "2.0.20", default-features = false }

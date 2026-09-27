@@ -1,5 +1,3 @@
-//! Set up the RISC-V linker script for RP2350 builds.
-
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
