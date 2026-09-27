@@ -40,7 +40,7 @@ use usb_device::bus::UsbBusAllocator;
 use crate::error::Error;
 use crate::host::Bus;
 use crate::result::Result;
-use crate::signing::Errand;
+use crate::signing::SigningAttempts;
 use crate::storage::Vault;
 use crate::usb::Link;
 
@@ -116,7 +116,7 @@ fn start() -> Result<Infallible> {
         led::tick,
     )?;
     let mut link = Link::new(&allocator)?;
-    let mut errand = Errand::new();
+    let mut signing = SigningAttempts::new();
     let mut frame = [0u8; MAX_FRAME_LEN];
 
     // Enter main system loop
@@ -127,11 +127,11 @@ fn start() -> Result<Infallible> {
         // Poll the link for connected host
         if link.poll() {
             // Serve the request
-            serve(&mut link, &mut vault, &errand, &mut frame, now_us)?;
+            serve(&mut link, &mut vault, &signing, &mut frame, now_us)?;
         }
 
         // Check if we need to do anything
-        errand.attend(&mut bus, &mut vault, now_us);
+        signing.attend(&mut bus, &mut vault, now_us);
 
         // Announce our status
         announce(&vault);
@@ -190,7 +190,7 @@ fn stored(len: usize, bytes: &[u8]) -> Result<Response> {
 fn serve(
     link: &mut Link<'_, UsbBus>,
     vault: &mut Vault,
-    errand: &Errand,
+    signing: &SigningAttempts,
     frame: &mut [u8],
     now_us: u64,
 ) -> Result<()> {
@@ -213,8 +213,8 @@ fn serve(
                 Err(_) => FAULT_BYTE,
             },
             provisioned: vault.provisioned(),
-            refusal: errand.refusal(),
-            detail: errand.detail(),
+            refusal: signing.refusal(),
+            detail: signing.detail(),
         },
         // Attempt to set a transaction
         Request::Put(transaction) => admit(vault, transaction.as_slice()),

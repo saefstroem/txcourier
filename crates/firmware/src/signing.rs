@@ -20,7 +20,9 @@ const BACKOFF_FIRST_US: u64 = 2_000_000;
 // Not fixed by any specification: the wait doubles from 2 s and is capped at 30 s.
 const BACKOFF_LAST_US: u64 = 30_000_000;
 
-pub struct Errand {
+/// Attempts to sign via ledger if its connected
+/// and we have the correct state
+pub struct SigningAttempts {
     settled: u8,
     next_poll_at: u64,
     backoff_us: u64,
@@ -29,7 +31,7 @@ pub struct Errand {
     detail: u16,
 }
 
-impl Errand {
+impl SigningAttempts {
     pub const fn new() -> Self {
         Self {
             settled: 0,
@@ -50,33 +52,42 @@ impl Errand {
     }
 
     pub fn attend(&mut self, bus: &mut Bus, vault: &mut Vault, now_us: u64) {
+        // If we are not waiting for signature we exit early
         if !waiting_for_a_signature(vault) {
             self.settled = 0;
             self.awaiting_detach = false;
             return;
         }
 
+        // Dont spam too hard
         if now_us < self.next_poll_at {
             return;
         }
+
+        // Compute next time we should poll
         self.next_poll_at = now_us + POLL_INTERVAL_US;
 
+        // If we are not attached exit early
         if !attached(bus) {
             self.settled = 0;
             self.awaiting_detach = false;
             return;
         }
 
+        // If we are awaiting user to detach it, we exit
         if self.awaiting_detach {
             return;
         }
 
+        // We wait for when the ledger has been plugged in for at least three polls
+        // before we start talking to it
         self.settled = self.settled.saturating_add(1);
         if self.settled < SETTLE_POLLS {
             return;
         }
         self.settled = 0;
 
+        // Exeute the main loop
         match self.run(bus, vault) {
             Ok(()) => {
                 self.backoff_us = BACKOFF_FIRST_US;
@@ -90,14 +101,16 @@ impl Errand {
     fn run(&mut self, bus: &mut Bus, vault: &mut Vault) -> Result<(), HostError> {
         let mut unsigned = [0u8; TRANSACTION_CAPACITY];
         let unsigned_len = vault.read_pending(&mut unsigned);
-
+        // read the unsigned transaction
         let raw = unsigned.get(..unsigned_len).unwrap_or(&[]);
         let token = token_for(raw, vault)?;
 
         let mut signed = [0u8; TRANSACTION_CAPACITY];
 
+        // attempt to get the signed transaction
         let signed_len = sign(bus, raw, token, &mut signed)?;
 
+        // store signature then append it
         match vault.replace_pending_with_signed(signed.get(..signed_len).unwrap_or(&[])) {
             Ok(()) => Ok(()),
             Err(_) => Err(HostError::ReplyTooLong),
@@ -108,6 +121,8 @@ impl Errand {
         self.refusal = Some(Refusal::from(error));
         self.detail = status_of(error);
 
+        // If the ledger denied we stop retrying this one and await for it to be 
+        // unplugged we wont retry again
         if self.detail == STATUS_DENIED {
             self.awaiting_detach = true;
             return;
