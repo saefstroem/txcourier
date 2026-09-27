@@ -54,33 +54,12 @@ cd crates/firmware && cargo run --release
 
 ## The lamp
 
-The single LED is the only thing the device can tell you. It is split in two:
-`crates/protocol/src/lamp.rs` decides whether it should be lit, and
-`crates/firmware/src/led.rs` drives the pins. The decision is a pure function of
-the microsecond clock and the published state — the blink phase is derived, not
-tracked — so it holds no state and is tested on the host.
-
 | Lamp | Meaning |
 |---|---|
-| Blink, 1 s | Idle — both slots empty |
-| Solid | Holding an unsigned transaction, waiting for a Ledger |
-| Blink, 200 ms | Holding a signed transaction, waiting for collection |
-| **Dark** | Fault, or a state byte the lamp does not recognise |
-
-Dark is the failure indication and the power-on default. `fault::halt()`
-publishes the fault byte, drives the pins dark once, then spins forever with
-interrupts masked — so nothing can overwrite it. The darkness is structural
-rather than a latch. Publishing alone would not be enough: single-threaded,
-nothing else is left running to act on the published state.
-
-`led::tick()` is called from the main loop and is also handed to the USB host as
-its heartbeat callback, so the lamp keeps blinking through a five-minute wait for
-a button press on the Ledger. It does stop for the length of a flash erase, which
-is tens of milliseconds against a 200 ms blink.
-
-Running on one core is a deliberate trade: nothing observes the application from
-the outside any more, so a hang that still reaches `tick()` will keep the lamp
-looking healthy.
+| Slow blink (1 s on, 1 s off) | Idle: both slots are empty |
+| Solid | Holding an unsigned transaction: plug in the Ledger to sign it |
+| Fast blink (200 ms on, 200 ms off) | Holding a signed transaction: bring it back to the CLI |
+| Dark | Something is wrong: either a fault (power-cycle the device) or both slots are full (clear the signed slot from the CLI) |
 
 ## Hardware notes
 

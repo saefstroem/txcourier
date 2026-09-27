@@ -46,7 +46,7 @@ pub fn encode(opcode: u8, payload: &[u8], out: &mut [u8]) -> Result<usize> {
 
     let length = payload.len() as u16;
 
-    /// put magiv, version, opcode, length, and payload
+    // put magiv, version, opcode, length, and payload
     put(out, 0, &MAGIC)?;
     put(out, VERSION_AT, &[VERSION])?;
     put(out, OPCODE_AT, &[opcode])?;
