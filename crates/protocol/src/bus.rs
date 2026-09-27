@@ -1,5 +1,3 @@
-// Not fixed by any specification: every sample must read idle J, so more samples let fewer
-// glitches through. The u8 counters cap it at 255.
 pub const BUS_SAMPLES: u8 = 64;
 
 #[cfg(test)]

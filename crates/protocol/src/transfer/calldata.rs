@@ -16,49 +16,66 @@ const WORD_LEN: usize = 32;
 // Solidity ABI: an address is a uint160, left-padded in its 32-byte word. 32 - 20.
 const PADDING_LEN: usize = WORD_LEN - ADDRESS_LEN;
 
+/// Encodes a transfer to calldata based on recipient and amount
 pub fn encode_transfer(
     recipient: &[u8; ADDRESS_LEN],
     amount: &[u8; AMOUNT_LEN],
 ) -> [u8; CALLDATA_LEN] {
     let mut calldata = [0u8; CALLDATA_LEN];
 
+    // Get the slot for the transfer selector 
     if let Some(slot) = calldata.get_mut(..SELECTOR_LEN) {
-        slot.copy_from_slice(&TRANSFER_SELECTOR);
+        slot.copy_from_slice(&TRANSFER_SELECTOR); //write transfer
     }
+
+    // Get the slot for the recipient
     if let Some(slot) = calldata.get_mut(SELECTOR_LEN + PADDING_LEN..SELECTOR_LEN + WORD_LEN) {
-        slot.copy_from_slice(recipient);
+        slot.copy_from_slice(recipient); //write recipient
     }
+
+    // Get the slot for amount
     if let Some(slot) = calldata.get_mut(SELECTOR_LEN + WORD_LEN..) {
-        slot.copy_from_slice(amount);
+        slot.copy_from_slice(amount); //write amount
     }
 
     calldata
 }
 
+/// Decode some data into a structured tuple of recipient and amount
 pub fn decode_transfer(data: &[u8]) -> Result<(&[u8; ADDRESS_LEN], &[u8; AMOUNT_LEN])> {
+    // We always expect a fixed size
     if data.len() != CALLDATA_LEN {
         return Err(Error::BadCalldataLength(data.len()));
     }
 
+    // Get the selector then the rest
     let Some((selector, words)) = data.split_at_checked(SELECTOR_LEN) else {
         return Err(Error::BadCalldataLength(data.len()));
     };
+
+    // Reject invalid selector
     if selector != TRANSFER_SELECTOR {
         let mut found = [0u8; SELECTOR_LEN];
         found.copy_from_slice(selector);
         return Err(Error::UnsupportedSelector(found));
     }
 
+    // Get padding and rest
     let Some((padding, rest)) = words.split_at_checked(PADDING_LEN) else {
         return Err(Error::BadCalldataLength(data.len()));
     };
+
+    // Validate padding correctness
     if padding.iter().any(|byte| *byte != 0) {
         return Err(Error::BadAddressPadding);
     }
 
+    // Extract recipient and amount
     let Some((recipient, amount)) = rest.split_at_checked(ADDRESS_LEN) else {
         return Err(Error::BadCalldataLength(data.len()));
     };
+
+    // Validate rcpt and amount
     let (Ok(recipient), Ok(amount)) = (
         <&[u8; ADDRESS_LEN]>::try_from(recipient),
         <&[u8; AMOUNT_LEN]>::try_from(amount),

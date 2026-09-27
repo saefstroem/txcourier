@@ -1,18 +1,23 @@
 use crate::store::record::{Kind, Slot, decode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A scan abstraction which contains
+/// the live index of where the slot exists
+/// where the next one should be written
+/// and what is the next sequence and if its full
 pub struct Scan {
     pub live_index: Option<usize>,
     pub next_index: usize,
     pub next_sequence: u32,
     pub full: bool,
 }
-
+/// Scan a memory sector for some record length
 pub fn scan(sector: &[u8], record_len: usize) -> Scan {
     let mut newest: Option<(u32, usize, Kind)> = None;
     let mut written_through = 0usize;
     let mut count = 0usize;
 
+    // If its empty simply return the genesis scan
     if record_len == 0 {
         return Scan {
             live_index: None,
@@ -22,6 +27,7 @@ pub fn scan(sector: &[u8], record_len: usize) -> Scan {
         };
     }
 
+    // Go over the sector in chunks of the record length
     for (index, bytes) in sector.chunks_exact(record_len).enumerate() {
         count = index + 1;
 
@@ -29,6 +35,7 @@ pub fn scan(sector: &[u8], record_len: usize) -> Scan {
             Slot::Erased => {}
             Slot::Corrupt => written_through = index + 1,
             Slot::Written(record) => {
+                // extract the record and its metadata
                 written_through = index + 1;
                 let newer = match newest {
                     Some((sequence, _, _)) => record.sequence > sequence,
@@ -41,11 +48,14 @@ pub fn scan(sector: &[u8], record_len: usize) -> Scan {
         }
     }
 
+    // We can guarantee we have the newest
+    // if its live then this is the live index, otherwise there is none
     let live_index = newest.and_then(|(_, index, kind)| match kind {
         Kind::Live => Some(index),
         Kind::Tombstone => None,
     });
 
+    // compute next sequence number for the memory
     let next_sequence = newest
         .map(|(sequence, _, _)| sequence.wrapping_add(1))
         .unwrap_or(0);

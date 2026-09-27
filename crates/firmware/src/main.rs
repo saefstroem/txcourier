@@ -119,20 +119,28 @@ fn start() -> Result<Infallible> {
     let mut errand = Errand::new();
     let mut frame = [0u8; MAX_FRAME_LEN];
 
+    // Enter main system loop
     loop {
+        // Get current time
         let now_us = timer.get_counter().ticks();
 
+        // Poll the link for connected host
         if link.poll() {
+            // Serve the request
             serve(&mut link, &mut vault, &errand, &mut frame, now_us)?;
         }
 
+        // Check if we need to do anything
         errand.attend(&mut bus, &mut vault, now_us);
 
+        // Announce our status
         announce(&vault);
+        // Reflect any kind of state changes on the LED
         led::tick();
     }
 }
 
+/// Announce the state of the system via the LED
 fn announce(vault: &Vault) {
     match vault.occupancy().state() {
         Ok(state) => led::publish(state),
@@ -140,6 +148,7 @@ fn announce(vault: &Vault) {
     }
 }
 
+/// Attempt to add a transaction to the vault
 fn admit(vault: &mut Vault, transaction: &[u8]) -> Response {
     if let Err(error) = approve(transaction) {
         return refused(Refusal::from(error));
@@ -151,6 +160,7 @@ fn admit(vault: &mut Vault, transaction: &[u8]) -> Response {
     }
 }
 
+/// Attempt to store tokens in the system
 fn provision(vault: &mut Vault, blob: &[u8]) -> Response {
     if let Err(error) = vault.occupancy().may_store_pending() {
         return refused(Refusal::from(error));
@@ -170,6 +180,7 @@ const fn refused(refusal: Refusal) -> Response {
     Response::Refused { refusal, detail: 0 }
 }
 
+/// Read the stored transaction 
 fn stored(len: usize, bytes: &[u8]) -> Result<Response> {
     Ok(Response::Slot {
         transaction: Transaction::from_slice(bytes.get(..len).unwrap_or(&[]))?,
@@ -183,6 +194,7 @@ fn serve(
     frame: &mut [u8],
     now_us: u64,
 ) -> Result<()> {
+    // Read the request
     let request = {
         let Some(received) = link.receive(now_us)? else {
             return Ok(());
@@ -193,8 +205,9 @@ fn serve(
         }
     };
 
+    // Compute a response
     let response = match request {
-        Request::Status => Response::Status {
+        Request::Status => Response::Status { // return status
             state: match vault.occupancy().state() {
                 Ok(state) => state.to_byte(),
                 Err(_) => FAULT_BYTE,
@@ -203,9 +216,10 @@ fn serve(
             refusal: errand.refusal(),
             detail: errand.detail(),
         },
-
+        // Attempt to set a transaction
         Request::Put(transaction) => admit(vault, transaction.as_slice()),
 
+        // Attempt to read a well defined flash slot
         Request::Get(slot) => {
             let mut bytes = [0u8; TRANSACTION_CAPACITY];
             let len = match slot {
@@ -214,7 +228,7 @@ fn serve(
             };
             stored(len, &bytes)?
         }
-
+        // Attempt to clear a slot
         Request::Clear(slot) => {
             let cleared = match slot {
                 Slot::Pending => vault.clear_pending(),
@@ -225,16 +239,18 @@ fn serve(
                 Err(error) => refused(Refusal::from(error)),
             }
         }
-
+        // Attempt to provision tokens for the system
         Request::Provision(tokens) => provision(vault, tokens.as_slice()),
     };
 
     let written = response.encode(frame)?;
 
+    // check if we have anything to send back
     let Some(reply) = frame.get(..written) else {
         return Ok(());
     };
 
+    // Send the reply 
     link.write(reply)?;
     Ok(())
 }

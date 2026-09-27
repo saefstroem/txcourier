@@ -8,6 +8,7 @@ use crate::transaction::ADDRESS_LEN;
 pub const MAX_TOKENS: usize = 15;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A list of tokens
 pub struct Tokens {
     descriptors: [Descriptor; MAX_TOKENS],
     count: usize,
@@ -20,9 +21,11 @@ impl Tokens {
         count: 0,
     };
 
+    /// Push a descriptor bytes into the list of tokens
     pub fn push(&mut self, descriptor: &[u8]) -> Result<()> {
         let descriptor = Descriptor::new(descriptor)?;
 
+        // Ensure we dont have too many
         let Some(slot) = self.descriptors.get_mut(self.count) else {
             return Err(Error::TooManyTokens);
         };
@@ -32,11 +35,13 @@ impl Tokens {
         Ok(())
     }
 
+    /// Extract a token descriptor based on the chain id and contract
     pub fn descriptor(&self, chain_id: u64, contract: &[u8; ADDRESS_LEN]) -> Option<&[u8]> {
         self.iter()
             .find(|descriptor| describes(descriptor, contract, chain_id).is_ok())
     }
 
+    /// Iterate over descriptors with their raw bytess
     pub fn iter(&self) -> impl Iterator<Item = &[u8]> {
         self.descriptors
             .iter()

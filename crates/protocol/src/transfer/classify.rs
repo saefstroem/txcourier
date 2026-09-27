@@ -4,6 +4,8 @@ use crate::transfer::error::Error;
 use crate::transfer::result::Result;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// The supported transfers in the system which is native and then erc20 token
+/// transfer
 pub enum Transfer<'a> {
     Native {
         chain_id: u64,
@@ -18,11 +20,14 @@ pub enum Transfer<'a> {
     },
 }
 
+/// Classifies an unsigned transaction into a transfer
 pub fn classify<'a>(unsigned: &Unsigned<'a>) -> Result<Transfer<'a>> {
+    // We dont allow contract creation transactions
     let Some(to) = unsigned.to else {
         return Err(Error::ContractCreation);
     };
 
+    // If the data is empty then its a native value transfer
     if unsigned.data.is_empty() {
         return Ok(Transfer::Native {
             chain_id: unsigned.chain_id,
@@ -31,10 +36,12 @@ pub fn classify<'a>(unsigned: &Unsigned<'a>) -> Result<Transfer<'a>> {
         });
     }
 
+    // We dont support erc20 token transfers which require value transfer
     if !unsigned.value.is_empty() {
         return Err(Error::ValueWithTokenTransfer);
     }
 
+    // Decode the erc20 transfer based on the unsigned data
     let (recipient, amount) = decode_transfer(unsigned.data)?;
 
     Ok(Transfer::Token {

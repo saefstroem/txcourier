@@ -24,16 +24,18 @@ pub const MAX_PAYLOAD_LEN: usize = 2048;
 pub const MAX_FRAME_LEN: usize = HEADER_LEN + MAX_PAYLOAD_LEN;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Decoded instruction
 pub struct Decoded<'a> {
     pub opcode: u8,
     pub payload: &'a [u8],
 }
 
+/// Encode instruction and payload to some mut buffer
 pub fn encode(opcode: u8, payload: &[u8], out: &mut [u8]) -> Result<usize> {
     if payload.len() > MAX_PAYLOAD_LEN {
         return Err(Error::PayloadTooLarge(payload.len()));
     }
-
+    // validate header size
     let total = HEADER_LEN + payload.len();
     if out.len() < total {
         return Err(Error::OutputTooSmall {
@@ -44,6 +46,7 @@ pub fn encode(opcode: u8, payload: &[u8], out: &mut [u8]) -> Result<usize> {
 
     let length = payload.len() as u16;
 
+    /// put magiv, version, opcode, length, and payload
     put(out, 0, &MAGIC)?;
     put(out, VERSION_AT, &[VERSION])?;
     put(out, OPCODE_AT, &[opcode])?;
@@ -53,6 +56,7 @@ pub fn encode(opcode: u8, payload: &[u8], out: &mut [u8]) -> Result<usize> {
     Ok(total)
 }
 
+/// Extract payload length from header
 pub fn payload_len(header: &[u8]) -> Result<usize> {
     if header.len() < HEADER_LEN {
         return Err(Error::TooShort {
@@ -61,19 +65,23 @@ pub fn payload_len(header: &[u8]) -> Result<usize> {
         });
     }
 
+    // extract magic
     if take(header, 0, MAGIC.len())? != MAGIC {
         return Err(Error::BadMagic);
     }
 
+    // then take version
     let version = byte_at(header, VERSION_AT)?;
     if version != VERSION {
         return Err(Error::UnsupportedVersion(version));
     }
 
+    // get length of payload, its right after one another
     let low = byte_at(header, LENGTH_AT)?;
     let high = byte_at(header, LENGTH_AT + 1)?;
     let length = usize::from(u16::from_le_bytes([low, high]));
 
+    // validate payload not too large
     if length > MAX_PAYLOAD_LEN {
         return Err(Error::PayloadTooLarge(length));
     }
@@ -81,10 +89,12 @@ pub fn payload_len(header: &[u8]) -> Result<usize> {
     Ok(length)
 }
 
+/// Frame length is the header + size of payload
 pub fn frame_len(header: &[u8]) -> Result<usize> {
     Ok(HEADER_LEN + payload_len(header)?)
 }
 
+/// Decode a full serialized frame into semi structured decoded instructions
 pub fn decode(frame: &[u8]) -> Result<Decoded<'_>> {
     let length = payload_len(frame)?;
     let total = HEADER_LEN + length;
@@ -106,18 +116,24 @@ pub fn decode(frame: &[u8]) -> Result<Decoded<'_>> {
     })
 }
 
+/// Put some bytes at position
 fn put(out: &mut [u8], at: usize, bytes: &[u8]) -> Result<()> {
     let end = at + bytes.len();
+
+    // validate and extract mutable slot
     let Some(slot) = out.get_mut(at..end) else {
         return Err(Error::OutputTooSmall {
             needed: end,
             found: out.len(),
         });
     };
+
+    // copy it into the buffer
     slot.copy_from_slice(bytes);
     Ok(())
 }
 
+/// Read some bytes off of it
 fn take(bytes: &[u8], at: usize, len: usize) -> Result<&[u8]> {
     let end = at + len;
     bytes.get(at..end).ok_or(Error::TooShort {
@@ -126,6 +142,7 @@ fn take(bytes: &[u8], at: usize, len: usize) -> Result<&[u8]> {
     })
 }
 
+/// Read byte at an index
 fn byte_at(bytes: &[u8], at: usize) -> Result<u8> {
     bytes.get(at).copied().ok_or(Error::TooShort {
         needed: at + 1,

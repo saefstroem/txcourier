@@ -20,41 +20,54 @@ const LENGTH_LEN: usize = 1;
 // const assert pins it below PROVISIONING_CAPACITY.
 pub const BLOB_MAX: usize = HEADER_LEN + MAX_TOKENS * (LENGTH_LEN + DESCRIPTOR_MAX) + CHECKSUM_LEN;
 
+/// Encodes a list of tokens into mutable buffer
 pub fn encode(tokens: &Tokens, out: &mut [u8]) -> Result<usize> {
     let mut writer = Writer { out, len: 0 };
 
+    // Add magic and version
     writer.push(&MAGIC)?;
     writer.push(&[VERSION, tokens.len() as u8])?;
 
+    // Simply push the length then each token descriptor
     for descriptor in tokens.iter() {
         writer.push(&[descriptor.len() as u8])?;
         writer.push(descriptor)?;
     }
 
+    // Extract the full body and checksum it
     let body = writer.out.get(..writer.len).unwrap_or(&[]);
     let crc = checksum(body).to_le_bytes();
-    writer.push(&crc)?;
+    writer.push(&crc)?; // append checksum
 
     Ok(writer.len)
 }
 
+/// Decodes a list of Tokens from raw bytes
 pub fn decode(bytes: &[u8]) -> Result<Tokens> {
+    // extract body length
     let Some(body_len) = bytes.len().checked_sub(CHECKSUM_LEN) else {
         return Err(Error::Truncated);
     };
+
+    // get body and checksum
     let Some((body, declared)) = bytes.split_at_checked(body_len) else {
         return Err(Error::Truncated);
     };
+
+    //verify checksum before working on the data
     if declared != checksum(body).to_le_bytes() {
         return Err(Error::ChecksumMismatch);
     }
 
+    // extract header
     let Some((header, mut rest)) = body.split_at_checked(HEADER_LEN) else {
         return Err(Error::Truncated);
     };
     let [magic @ .., version, count] = header else {
         return Err(Error::Truncated);
     };
+
+    // verify magic and version
     if magic != MAGIC {
         return Err(Error::BadMagic);
     }
@@ -64,6 +77,7 @@ pub fn decode(bytes: &[u8]) -> Result<Tokens> {
 
     let mut tokens = Tokens::EMPTY;
 
+    // Extract the token descriptor from the body
     for _ in 0..*count {
         let Some((&len, tail)) = rest.split_first() else {
             return Err(Error::Truncated);
@@ -75,10 +89,12 @@ pub fn decode(bytes: &[u8]) -> Result<Tokens> {
         rest = tail;
     }
 
+    // Ensure nothing remains
     if !rest.is_empty() {
         return Err(Error::TrailingBytes(rest.len()));
     }
 
+    // Return extracted token
     Ok(tokens)
 }
 
@@ -88,15 +104,22 @@ struct Writer<'a> {
 }
 
 impl Writer<'_> {
+    /// Pushed bytes in accordance with the coding format
     fn push(&mut self, bytes: &[u8]) -> Result<()> {
+        // compute how much is needed
         let needed = self.len + bytes.len();
+
+        // get mutable slot slice
         let Some(slot) = self.out.get_mut(self.len..needed) else {
             return Err(Error::OutputTooSmall {
                 needed,
                 found: self.out.len(),
             });
         };
+        // copy the bytes into the slot
         slot.copy_from_slice(bytes);
+
+        // update the length
         self.len = needed;
         Ok(())
     }

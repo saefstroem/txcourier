@@ -8,24 +8,27 @@ pub struct Bytes<const CAPACITY: usize> {
 }
 
 impl<const CAPACITY: usize> Bytes<CAPACITY> {
-    // Re-exports the generic parameter so callers can size buffers without naming it.
     pub const CAPACITY: usize = CAPACITY;
 
+    /// Computes a known Bytes size from a slice
     pub fn from_slice(bytes: &[u8]) -> Result<Self> {
         let Ok(len) = u16::try_from(bytes.len()) else {
             return Err(Error::PayloadTooLarge(bytes.len()));
         };
 
+        // Create bounded bytes
         let mut bounded = Self {
             bytes: [0; CAPACITY],
             len,
         };
 
+        // copy it there
         let Some(destination) = bounded.bytes.get_mut(..bytes.len()) else {
             return Err(Error::PayloadTooLarge(bytes.len()));
         };
         destination.copy_from_slice(bytes);
 
+        // now return guarantee bytes
         Ok(bounded)
     }
 

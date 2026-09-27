@@ -5,8 +5,6 @@ use crate::wire::result::Result;
 use crate::wire::slot::Slot;
 use crate::wire::transaction::Transaction;
 
-// Every opcode differs from every other in at least two bits. The frame carries no checksum
-// over the opcode, so a single flipped bit cannot turn one request into another.
 const STATUS: u8 = 0x01;
 const PUT: u8 = 0x07;
 // One opcode for both slots; the slot selector is in the payload.

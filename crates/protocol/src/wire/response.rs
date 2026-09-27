@@ -4,14 +4,12 @@ use crate::wire::refusal::Refusal;
 use crate::wire::result::Result;
 use crate::wire::transaction::Transaction;
 
-// Bit 7 marks a response. Every opcode differs from every other in at least two bits, and
-// the frame carries no checksum over the opcode.
 const STATUS: u8 = 0x81;
 const SLOT: u8 = 0x87;
 const ACKNOWLEDGED: u8 = 0x88;
 const REFUSED: u8 = 0x8E;
 
-// No Refusal is numbered 0, so zero means no failure recorded in a status.
+// No Refusal is numbered 0
 const NO_REFUSAL: u8 = 0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

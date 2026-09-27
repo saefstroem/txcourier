@@ -1,7 +1,7 @@
 use crate::store::{SLOT_RECORD_LEN, payload_capacity};
 use crate::wire::bytes::Bytes;
 
-// What one 256-byte flash slot record holds after its 8-byte header and 4-byte CRC32.
+// Max size after its 8-byte header and 4-byte CRC32.
 pub const TRANSACTION_CAPACITY: usize = 244;
 
 const _: () = assert!(TRANSACTION_CAPACITY == payload_capacity(SLOT_RECORD_LEN));

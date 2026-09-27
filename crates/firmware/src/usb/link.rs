@@ -33,7 +33,7 @@ const WRITE_POLL_LIMIT: u32 = 1_000_000;
 // dropped, so the next request is not spliced onto them.
 const PARTIAL_FRAME_TIMEOUT_US: u64 = 200_000;
 
-/// The connection between the rp2350
+/// The connection between the rp2350 and the host machine
 pub struct Link<'a, B: UsbBus> {
     device: UsbDevice<'a, B>,
     serial: CdcAcmClass<'a, B>,

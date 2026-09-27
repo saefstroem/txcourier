@@ -62,23 +62,30 @@ const APDU_INTERFACE_DESCRIPTOR: [u8; 8] = [
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Interface of the APDU
 pub struct ApduInterface {
     pub configuration_value: u8,
     pub endpoint_in: u8,
     pub endpoint_out: u8,
 }
 
+/// Verify that the APDU interface is Ledger APDU interface so that we dont communicate
+/// with other unexpected device
 pub fn verify_apdu_interface(descriptor: &[u8]) -> Result<ApduInterface> {
+    // extract header
     let header = Header::read(descriptor)?;
 
     if usize::from(header.total_length) != descriptor.len() {
         return Err(Error::Truncated);
     }
 
+    // Ensure there is expected number of interfaces
     if header.interfaces != LEDGER_INTERFACES {
         return Err(Error::UnexpectedInterfaceCount(header.interfaces));
     }
 
+    // Get the body and compute the endpoints at which we should communicate
+    // on.
     let body = descriptor.get(HEADER_LEN..).ok_or(Error::Truncated)?;
     let after_interface = apdu_interface(body)?;
     let after_hid = hid_class_descriptor(after_interface)?;
@@ -92,6 +99,7 @@ pub fn verify_apdu_interface(descriptor: &[u8]) -> Result<ApduInterface> {
     })
 }
 
+/// Extracts APDU interface from some bytes
 fn apdu_interface(bytes: &[u8]) -> Result<&[u8]> {
     if !bytes.starts_with(&APDU_INTERFACE_DESCRIPTOR) {
         return Err(Error::NotApduInterface);
@@ -102,6 +110,7 @@ fn apdu_interface(bytes: &[u8]) -> Result<&[u8]> {
         .ok_or(Error::Truncated)
 }
 
+/// Extract hid class descriptor from bytes
 fn hid_class_descriptor(bytes: &[u8]) -> Result<&[u8]> {
     let [length, HID_DESCRIPTOR_TYPE, ..] = bytes else {
         return Err(Error::MissingHidDescriptor);
@@ -114,6 +123,7 @@ fn hid_class_descriptor(bytes: &[u8]) -> Result<&[u8]> {
     bytes.get(usize::from(*length)..).ok_or(Error::Truncated)
 }
 
+/// Computes endpoint from bytes
 fn interrupt_endpoint(bytes: &[u8], expected: u8) -> Result<(u8, &[u8])> {
     let [
         length,
@@ -129,14 +139,17 @@ fn interrupt_endpoint(bytes: &[u8], expected: u8) -> Result<(u8, &[u8])> {
         return Err(Error::Truncated);
     };
 
+    // Ensure it is expected, i.e. it matches what we have encoded
     if *length != ENDPOINT_LENGTH || *address != expected {
         return Err(Error::UnexpectedEndpoint(*address));
     }
 
+    // Ensure correct transfer type
     if *attributes & TRANSFER_TYPE_MASK != TRANSFER_TYPE_INTERRUPT {
         return Err(Error::NotInterruptEndpoint(*address));
     }
 
+    // ensure packet size is expected apdu packet size (64)
     let packet = u16::from_le_bytes([*packet_low, *packet_high]);
     if usize::from(packet) != REPORT_LEN {
         return Err(Error::UnexpectedPacketSize(packet));

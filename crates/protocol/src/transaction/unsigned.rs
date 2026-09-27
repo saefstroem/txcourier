@@ -9,33 +9,49 @@ pub const ADDRESS_LEN: usize = 20;
 // Yellow Paper: value and both fee fields are 256-bit scalars.
 pub const QUANTITY_MAX_LEN: usize = 32;
 
-// Defined by this crate: Unsigned holds chain id, nonce and gas limit as u64, so anything
-// wider is refused. The Yellow Paper allows a nonce or gas limit up to 2^256.
+// Defined by this crate: Unsigned holds chain id, nonce and gas limit as u64.
+// The Yellow Paper allows a nonce or gas limit up to 2^256.
 const U64_MAX_LEN: usize = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A structured unsigned transaction
 pub struct Unsigned<'a> {
+    /// For which evm chain id this exists
     pub chain_id: u64,
+    /// For which nonce
     pub nonce: u64,
+    /// Maximum priority fee 
     pub max_priority_fee: &'a [u8],
+    /// Max fee
     pub max_fee: &'a [u8],
+    /// How much gas to allow for this tx
     pub gas_limit: u64,
+    /// To whom are we sending
     pub to: Option<&'a [u8; ADDRESS_LEN]>,
+    /// How much native value is transferred
     pub value: &'a [u8],
+    /// Any calldata? Only used for erc20 transfers
+    /// we dont allow any other calls
     pub data: &'a [u8],
 }
 
 impl<'a> Unsigned<'a> {
+    /// Decoded bytes into structured form
     pub fn decode(bytes: &'a [u8]) -> Result<Self> {
+        // Get the tx kind and then the envelope
         let Some((kind, envelope)) = bytes.split_first() else {
             return Err(Error::Empty);
         };
+
+        // We only support eip1559 for now
         if *kind != TYPE_EIP1559 {
             return Err(Error::UnsupportedType(*kind));
         }
 
+        // Extract the envelope as a list
         let mut fields = decode_exact(envelope)?.list()?;
 
+        // extract typed data
         let chain_id = unsigned_field(&mut fields)?;
         let nonce = unsigned_field(&mut fields)?;
         let max_priority_fee = quantity_field(&mut fields)?;
@@ -45,11 +61,13 @@ impl<'a> Unsigned<'a> {
         let value = quantity_field(&mut fields)?;
         let data = next_field(&mut fields)?.bytes()?;
 
+        // we dont support access list
         let mut access_list = next_field(&mut fields)?.list()?;
         if access_list.next().is_some() {
             return Err(Error::AccessListNotEmpty);
         }
 
+        // no more fields should exist
         if fields.next().is_some() {
             return Err(Error::TooManyFields);
         }
@@ -66,12 +84,17 @@ impl<'a> Unsigned<'a> {
         })
     }
 
+    /// Encoding an unsigned tx is simply to get the envelope encoder
+    /// then encode it as list and encode all fields
     pub fn encode(&self, out: &mut [u8]) -> Result<usize> {
         let mut encoder = envelope_encoder(out)?;
         encoder.list(|fields| self.encode_fields(fields))?;
+
+        // type + bytes written
         Ok(1 + encoder.finish())
     }
 
+    /// Enocde all fields in accordance with their type nothing special
     pub fn encode_fields(&self, fields: &mut Encoder<'_>) -> crate::rlp::Result<()> {
         fields.unsigned(self.chain_id)?;
         fields.unsigned(self.nonce)?;
@@ -85,17 +108,22 @@ impl<'a> Unsigned<'a> {
     }
 }
 
+/// Retrieves an envelope enocder
 pub fn envelope_encoder(out: &mut [u8]) -> Result<Encoder<'_>> {
+    // Get slot for kind and then the rest
     let Some((kind, envelope)) = out.split_first_mut() else {
         return Err(Error::Rlp(crate::rlp::Error::OutputTooSmall {
             needed: 1,
             found: 0,
         }));
     };
+
+    // mark kind as eip1559
     *kind = TYPE_EIP1559;
     Ok(Encoder::new(envelope))
 }
 
+/// Retrieves the next field within the list to be encoded
 fn next_field<'a>(fields: &mut Items<'a>) -> Result<Item<'a>> {
     match fields.next() {
         Some(item) => Ok(item?),
@@ -103,19 +131,24 @@ fn next_field<'a>(fields: &mut Items<'a>) -> Result<Item<'a>> {
     }
 }
 
+/// Encodes some bytes as u64
 fn unsigned_field(fields: &mut Items<'_>) -> Result<u64> {
+    // get the bytes to be encoded
     let bytes = canonical_integer(next_field(fields)?.bytes()?)?;
+    // ensure max len
     if bytes.len() > U64_MAX_LEN {
         return Err(Error::IntegerTooLarge);
     }
 
     let mut value = 0u64;
     for byte in bytes {
+        // multiply by 256 and encode the byteas
         value = value << 8 | u64::from(*byte);
     }
     Ok(value)
 }
 
+/// Encode next field into quantity
 fn quantity_field<'a>(fields: &mut Items<'a>) -> Result<&'a [u8]> {
     let bytes = canonical_integer(next_field(fields)?.bytes()?)?;
     if bytes.len() > QUANTITY_MAX_LEN {
@@ -124,17 +157,21 @@ fn quantity_field<'a>(fields: &mut Items<'a>) -> Result<&'a [u8]> {
     Ok(bytes)
 }
 
+/// Encode next field into an ETH address
 fn address_field<'a>(fields: &mut Items<'a>) -> Result<Option<&'a [u8; ADDRESS_LEN]>> {
     let bytes = next_field(fields)?.bytes()?;
     if bytes.is_empty() {
         return Ok(None);
     }
+
+    // Extract the address
     match <&[u8; ADDRESS_LEN]>::try_from(bytes) {
         Ok(address) => Ok(Some(address)),
         Err(_) => Err(Error::BadAddressLength(bytes.len())),
     }
 }
 
+// We dont allow leading zeros
 fn canonical_integer(bytes: &[u8]) -> Result<&[u8]> {
     if bytes.first() == Some(&0) {
         return Err(Error::NonCanonicalInteger);

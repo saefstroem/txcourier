@@ -18,6 +18,7 @@ const PARITY_ODD: u8 = 1;
 const LEGACY_PARITY_BASE: u8 = 27;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A standard eth signature
 pub struct Signature {
     pub y_parity: u8,
     pub r: [u8; SIGNATURE_WORD_LEN],
@@ -25,34 +26,43 @@ pub struct Signature {
 }
 
 impl Signature {
+    /// Extract signature from a ledger signature `v`,`r`,`s`
     pub fn from_ledger(
         v: u8,
         r: [u8; SIGNATURE_WORD_LEN],
         s: [u8; SIGNATURE_WORD_LEN],
     ) -> Result<Self> {
+        // compute y parity
         let y_parity = match v {
-            PARITY_EVEN | PARITY_ODD => v,
-            LEGACY_PARITY_BASE => PARITY_EVEN,
-            v if v == LEGACY_PARITY_BASE + 1 => PARITY_ODD,
-            other => return Err(Error::BadParity(other)),
+            PARITY_EVEN | PARITY_ODD => v, // already parity keep it
+            LEGACY_PARITY_BASE => PARITY_EVEN, // even parity
+            v if v == LEGACY_PARITY_BASE + 1 => PARITY_ODD, // odd parity
+            other => return Err(Error::BadParity(other)), // reject anything else
         };
 
         Ok(Self { y_parity, r, s })
     }
 }
 
+/// Create a signed transaction from unsigned structured and parsed sig.
 pub fn encode_signed(
     unsigned: &Unsigned<'_>,
     signature: &Signature,
     out: &mut [u8],
 ) -> Result<usize> {
+    // get envelope encoder
     let mut encoder = envelope_encoder(out)?;
     encoder.list(|fields| {
+        // Encode the unsigned tx fields
         unsigned.encode_fields(fields)?;
+        // Encode unsigned parity as u64
         fields.unsigned(u64::from(signature.y_parity))?;
+        // Encode r and s as numbers using our rlp encoder
         fields.quantity(&signature.r)?;
         fields.quantity(&signature.s)
     })?;
+    // 1 + finish represents the tx type and the bytes written
+    // by encoder
     Ok(1 + encoder.finish())
 }
 

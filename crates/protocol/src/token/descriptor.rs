@@ -23,6 +23,7 @@ const DER_SEQUENCE: u8 = 0x30;
 const DER_HEADER_LEN: usize = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A token descriptor 
 pub struct Descriptor {
     bytes: [u8; DESCRIPTOR_MAX],
     len: u8,
@@ -35,6 +36,7 @@ impl Descriptor {
         len: 0,
     };
 
+    /// Create a new token descriptor
     pub fn new(bytes: &[u8]) -> Result<Self> {
         if bytes.is_empty() {
             return Err(Error::DescriptorMissing);
@@ -48,6 +50,8 @@ impl Descriptor {
         let Some(slot) = descriptor.bytes.get_mut(..bytes.len()) else {
             return Err(Error::DescriptorTooLong(bytes.len()));
         };
+
+        // Simply install the bytes and update length
         slot.copy_from_slice(bytes);
         descriptor.len = bytes.len() as u8;
 
@@ -59,10 +63,13 @@ impl Descriptor {
     }
 }
 
+/// Validate whether a token descriptor describes an address at a certain chain id
 pub fn describes(descriptor: &[u8], address: &[u8; ADDRESS_LEN], chain_id: u64) -> Result<()> {
     let Some(&ticker_len) = descriptor.get(TICKER_LEN_AT) else {
         return Err(Error::DescriptorMalformed);
     };
+
+    // Compute offsets for all
     let ticker_len = usize::from(ticker_len);
 
     let address_at = ADDRESS_AFTER_TICKER + ticker_len;
@@ -70,6 +77,7 @@ pub fn describes(descriptor: &[u8], address: &[u8; ADDRESS_LEN], chain_id: u64) 
     let chain_at = decimals_at + DECIMALS_LEN;
     let signature_at = chain_at + CHAIN_ID_LEN;
 
+    // The ledger signs all the tokens
     let (Some(&tag), Some(&declared)) = (
         descriptor.get(signature_at),
         descriptor.get(signature_at + 1),
@@ -77,14 +85,17 @@ pub fn describes(descriptor: &[u8], address: &[u8; ADDRESS_LEN], chain_id: u64) 
         return Err(Error::DescriptorMalformed);
     };
 
+    // Ensure proper start of an ECDSA signature
     if tag != DER_SEQUENCE {
         return Err(Error::DescriptorMalformed);
     }
 
+    // Ensure the descriptor is the length its claiming based on contents
     if descriptor.len() != signature_at + DER_HEADER_LEN + usize::from(declared) {
         return Err(Error::DescriptorMalformed);
     }
 
+    // Ensure the address matches
     let Some(found) = descriptor.get(address_at..decimals_at) else {
         return Err(Error::DescriptorMalformed);
     };
@@ -92,6 +103,7 @@ pub fn describes(descriptor: &[u8], address: &[u8; ADDRESS_LEN], chain_id: u64) 
         return Err(Error::DescriptorAddressMismatch);
     }
 
+    // Ensure the chain matches
     let Some(chain) = descriptor.get(chain_at..signature_at) else {
         return Err(Error::DescriptorMalformed);
     };

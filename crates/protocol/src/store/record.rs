@@ -57,11 +57,12 @@ pub const fn payload_capacity(record_len: usize) -> usize {
     record_len.saturating_sub(HEADER_LEN + CHECKSUM_LEN)
 }
 
+/// Serialize the record for on-flash format
 pub fn encode(record: &Record<'_>, out: &mut [u8]) -> Result<()> {
     if out.len() < HEADER_LEN + CHECKSUM_LEN {
         return Err(Error::RecordTooSmall(out.len()));
     }
-
+    // Compute capacity of the output to ensure it fits
     let capacity = payload_capacity(out.len());
     if record.payload.len() > capacity {
         return Err(Error::PayloadTooLarge {
@@ -70,69 +71,99 @@ pub fn encode(record: &Record<'_>, out: &mut [u8]) -> Result<()> {
         });
     }
 
+    // Zero out the whole slot
     out.fill(0);
 
+    // Split up the header into the coresponding parts
     let Some([sequence @ .., kind, reserved, length_low, length_high]) =
         out.first_chunk_mut::<HEADER_LEN>()
     else {
         return Err(Error::RecordTooSmall(out.len()));
     };
+    // Encode sequence, highest = most latest
     *sequence = record.sequence.to_le_bytes();
+
+    // Record kind
     *kind = record.kind.to_byte();
+
+    // in order to keep the header 8 byte aligned we ahve an reserve field, 
+    // also functions as a cheap sanity check, since its required to be 0
     *reserved = RESERVED;
+
+    // get the low and high bytes for length
     [*length_low, *length_high] = (record.payload.len() as u16).to_le_bytes();
 
+    // get the body slot from the output
     let Some(body) = out.get_mut(HEADER_LEN..HEADER_LEN + record.payload.len()) else {
         return Err(Error::RecordTooSmall(out.len()));
     };
+    // insert the payload
     body.copy_from_slice(record.payload);
 
+    // Compute index of checked payload
     let checked = out.len() - CHECKSUM_LEN;
+
+    // extract the payload to be checksummed
     let Some(covered) = out.get(..checked) else {
         return Err(Error::RecordTooSmall(out.len()));
     };
+
+    // compute crc
     let crc = checksum(covered).to_le_bytes();
 
     let Some(tail) = out.get_mut(checked..) else {
         return Err(Error::RecordTooSmall(out.len()));
     };
+
+    // append crc
     tail.copy_from_slice(&crc);
 
     Ok(())
 }
 
+/// Decoded sopme byte into a structured Slot
 pub fn decode(bytes: &[u8]) -> Slot<'_> {
     if bytes.len() < HEADER_LEN + CHECKSUM_LEN {
         return Slot::Corrupt;
     }
 
+    // If its marked as tombstoned
     if bytes.iter().all(|byte| *byte == ERASED) {
         return Slot::Erased;
     }
 
+    // Extract the checked index position
     let checked = bytes.len() - CHECKSUM_LEN;
+    // extract the payload to checksum and the checksum itself
     let (Some(covered), Some(declared)) = (bytes.get(..checked), bytes.get(checked..)) else {
         return Slot::Corrupt;
     };
+    // ensure data matches
     if declared != checksum(covered).to_le_bytes() {
         return Slot::Corrupt;
     }
 
+    // deserialize the header
     let Some(&[sequence @ .., kind, RESERVED, length_low, length_high]) =
         bytes.first_chunk::<HEADER_LEN>()
     else {
         return Slot::Corrupt;
     };
 
+    // Compute kind
     let Some(kind) = Kind::from_byte(kind) else {
         return Slot::Corrupt;
     };
 
+    // Compute length of payload
     let length = usize::from(u16::from_le_bytes([length_low, length_high]));
+
+    // Extract payload
     let Some(payload) = bytes.get(HEADER_LEN..HEADER_LEN + length) else {
         return Slot::Corrupt;
     };
 
+    // At this point it is a valid record from flash memory
     Slot::Written(Record {
         sequence: u32::from_le_bytes(sequence),
         kind,

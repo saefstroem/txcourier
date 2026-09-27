@@ -1,10 +1,9 @@
 use crate::wire::error::Error;
 use crate::wire::result::Result;
 
-// The pending slot selector. One bit from SIGNED, and the frame carries no checksum over it.
+// The pending slot selector. One bit from SIGNED
 const PENDING: u8 = 0x00;
-// The signed slot selector. A flip from PENDING turns a clear of the pending slot into a
-// clear of an uncollected signature.
+// The signed slot selector.
 const SIGNED: u8 = 0x01;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
