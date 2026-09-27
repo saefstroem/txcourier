@@ -56,12 +56,12 @@ impl Occupancy {
         }
     }
 
-    /// Can only clear signed if only signed occupied
+    /// Can clear signed whenever something is signed, even with pending also stored,
+    /// which is the way out of both slots being occupied
     pub const fn may_clear_signed(self) -> Result<()> {
         match (self.pending, self.signed) {
-            (false, true) => Ok(()),
-            (true, true) => Err(Error::BothSlotsOccupied),
-            _ => Err(Error::NothingSigned),
+            (_, true) => Ok(()),
+            (_, false) => Err(Error::NothingSigned),
         }
     }
 }
@@ -101,8 +101,20 @@ mod tests {
         assert_eq!(BOTH.state(), Err(Error::BothSlotsOccupied));
         assert_eq!(BOTH.may_store_pending(), Err(Error::BothSlotsOccupied));
         assert_eq!(BOTH.may_store_signed(), Err(Error::BothSlotsOccupied));
-        assert_eq!(BOTH.may_clear_signed(), Err(Error::BothSlotsOccupied));
         assert_eq!(BOTH.may_clear_pending(), Err(Error::BothSlotsOccupied));
+    }
+
+    #[test]
+    fn clearing_the_signature_is_the_way_out_of_both_slots_occupied() {
+        assert_eq!(BOTH.may_clear_signed(), Ok(()));
+
+        let after = Occupancy {
+            pending: BOTH.pending,
+            signed: false,
+        };
+        assert_eq!(after, PENDING);
+        assert_eq!(after.state(), Ok(DeviceState::PendingStored));
+        assert_eq!(after.may_clear_pending(), Ok(()));
     }
 
     #[test]
@@ -125,6 +137,7 @@ mod tests {
     #[test]
     fn only_a_stored_signature_can_be_cleared() {
         assert_eq!(SIGNED.may_clear_signed(), Ok(()));
+        assert_eq!(BOTH.may_clear_signed(), Ok(()));
         assert_eq!(EMPTY.may_clear_signed(), Err(Error::NothingSigned));
         assert_eq!(PENDING.may_clear_signed(), Err(Error::NothingSigned));
     }
