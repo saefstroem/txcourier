@@ -11,11 +11,12 @@ target = "riscv32imac-unknown-none-elf"
 # Soft-float ABI. Hazard3 has no FPU, so float arguments use integer registers.
 [target.riscv32imac-unknown-none-elf]
 # * --nmagic turns off page alignment of sections (saves flash)
-# * -Trp235x_riscv.x is the RP2350 RISC-V linker script; it pulls in riscv-rt's
-#   link.x itself (the reverse of how the Cortex-M side works)
+# * -Tmemory.x is our memory map and the RP2350 boot blocks; it must come first
+#   so its region aliases exist before riscv-rt's -Tlink.x uses them
 rustflags = [
     "-C", "link-arg=--nmagic",
-    "-C", "link-arg=-Trp235x_riscv.x",
+    "-C", "link-arg=-Tmemory.x",
+    "-C", "link-arg=-Tlink.x",
 ]
 
 # `cargo run --release` flashes. flash.sh lives at the repository root; cargo
