@@ -43,7 +43,7 @@ public final class Node {
                 doubt = true;
                 report.accept(url, new IOException("node answered " + Text.clean(hash) + " instead of a transaction hash"));
             } catch (Refused refused) {
-                doubt |= Text.reason(refused).matches("(?is).*(already known|known transaction|already imported).*");
+                doubt |= Text.reason(refused).matches("(?is).*(already known|known transaction|already imported|nonce too low).*");
                 report.accept(url, refused);
             } catch (Throwable failure) {
                 doubt = true;
