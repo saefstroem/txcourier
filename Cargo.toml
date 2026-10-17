@@ -1,10 +1,25 @@
-[package]
-name = "rpwalletmgr"
+# Host-side workspace: the CLI and the shared protocol crate.
+#
+# `crates/firmware` is deliberately NOT a member. It is its own workspace with
+# its own `.cargo/config.toml`, because it builds for riscv32imac-unknown-none-elf
+# with a custom linker script. Keeping the two apart means plain `cargo test`
+# works here and plain `cargo build --release` works in there, with no
+# `--target` juggling and no chance of accidentally building the firmware for
+# the host (or the CLI for the RP2350).
+#
+#   host:     cargo test                       (from this directory)
+#   firmware: cd crates/firmware && cargo build --release
+
+[workspace]
+resolver = "3"
+members = ["crates/protocol", "crates/pio-usb", "crates/cli"]
+exclude = ["crates/firmware"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
-[dependencies]
-rp235x-hal = { version = "0.4", features = ["binary-info", "critical-section-impl", "rt"] }
-embedded-hal = "1.0"
-panic-halt = "1.0"
-pio = "0.3"
+[workspace.dependencies]
+txcourier-protocol = { path = "crates/protocol" }
+txcourier-pio-usb = { path = "crates/pio-usb" }

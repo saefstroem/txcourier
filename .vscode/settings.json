@@ -1,0 +1,19 @@
+{
+  // The firmware is deliberately excluded from the root workspace (it builds
+  // for riscv32imac with its own linker script), so rust-analyzer's
+  // auto-discovery only ever finds the host workspace and the firmware gets no
+  // hovers, completions or diagnostics at all.
+  //
+  // Listing projects here DISABLES auto-discovery, so both must be named — the
+  // root one is not implicit.
+  //
+  // Note there is deliberately no `rust-analyzer.cargo.target` setting: it is a
+  // single global value, so pointing it at riscv32imac would fix the firmware
+  // and break crates/cli. It is not needed anyway — rust-analyzer runs cargo
+  // from each linked project's own directory, so the firmware picks up its
+  // target from crates/firmware/.cargo/config.toml by itself.
+  "rust-analyzer.linkedProjects": [
+    "Cargo.toml",
+    "crates/firmware/Cargo.toml"
+  ]
+}

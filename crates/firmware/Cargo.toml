@@ -1,0 +1,29 @@
+[workspace]
+
+[package]
+name = "txcourier-firmware"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "RP2350 firmware for the air-gapped Ledger transaction courier"
+
+[[bin]]
+name = "txcourier-firmware"
+path = "src/main.rs"
+test = false
+bench = false
+
+[dependencies]
+rp235x-hal = { version = "0.4", features = ["binary-info", "critical-section-impl", "rt"] }
+embedded-hal = "1.0"
+usb-device = "0.3.2"
+txcourier-protocol = { path = "../protocol" }
+txcourier-pio-usb = { path = "../pio-usb" }
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+opt-level = "s"
+debug = 2
+panic = "abort"
+overflow-checks = true
