@@ -1,24 +1,21 @@
 use crate::wire::error::Error;
 use crate::wire::frame;
-use crate::wire::provisioning::Provisioning;
+use crate::wire::record::Record;
 use crate::wire::result::Result;
 use crate::wire::slot::Slot;
-use crate::wire::transaction::Transaction;
 
 const STATUS: u8 = 0x01;
-const PUT: u8 = 0x07;
+const PUT: u8 = 0x0E;
 // One opcode for both slots; the slot selector is in the payload.
 const GET: u8 = 0x08;
 const CLEAR: u8 = 0x0D;
-const PROVISION: u8 = 0x0B;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Request {
     Status,
-    Put(Transaction),
+    Put(Record),
     Get(Slot),
     Clear(Slot),
-    Provision(Provisioning),
 }
 
 impl Request {
@@ -28,17 +25,15 @@ impl Request {
             Self::Put(_) => PUT,
             Self::Get(_) => GET,
             Self::Clear(_) => CLEAR,
-            Self::Provision(_) => PROVISION,
         }
     }
 
     pub fn encode(self, out: &mut [u8]) -> Result<usize> {
         match self {
             Self::Status => frame::encode(STATUS, &[], out),
-            Self::Put(transaction) => frame::encode(PUT, transaction.as_slice(), out),
+            Self::Put(record) => frame::encode(PUT, record.as_slice(), out),
             Self::Get(slot) => frame::encode(GET, &[slot.to_byte()], out),
             Self::Clear(slot) => frame::encode(CLEAR, &[slot.to_byte()], out),
-            Self::Provision(tokens) => frame::encode(PROVISION, tokens.as_slice(), out),
         }
     }
 
@@ -48,10 +43,9 @@ impl Request {
         match decoded.opcode {
             STATUS if decoded.payload.is_empty() => Ok(Self::Status),
             STATUS => Err(Error::MalformedPayload),
-            PUT => Transaction::from_slice(decoded.payload).map(Self::Put),
+            PUT => Record::from_slice(decoded.payload).map(Self::Put),
             GET => selected(decoded.payload).map(Self::Get),
             CLEAR => selected(decoded.payload).map(Self::Clear),
-            PROVISION => Provisioning::from_slice(decoded.payload).map(Self::Provision),
             other => Err(Error::UnknownOpcode(other)),
         }
     }
@@ -69,13 +63,11 @@ mod tests {
     use super::CLEAR;
     use super::Error;
     use super::GET;
-    use super::PROVISION;
     use super::PUT;
-    use super::Provisioning;
+    use super::Record;
     use super::Request;
     use super::STATUS;
     use super::Slot;
-    use super::Transaction;
     use crate::wire::frame;
 
     fn encoded(request: Request) -> Vec<u8> {
@@ -87,12 +79,11 @@ mod tests {
     fn every_request() -> Vec<Request> {
         vec![
             Request::Status,
-            Request::Put(Transaction::from_slice(&[0x02, 0xF0]).expect("fits")),
+            Request::Put(Record::from_slice(&[0x02, 0xF0]).expect("fits")),
             Request::Get(Slot::Pending),
             Request::Get(Slot::Signed),
             Request::Clear(Slot::Pending),
             Request::Clear(Slot::Signed),
-            Request::Provision(Provisioning::from_slice(b"RPWL").expect("fits")),
         ]
     }
 
@@ -105,11 +96,11 @@ mod tests {
 
     #[test]
     fn the_encoded_bytes_of_every_request_are_pinned() {
-        let expected: [(Request, Vec<u8>); 7] = [
+        let expected: [(Request, Vec<u8>); 6] = [
             (Request::Status, vec![0x52, 0x57, 0x01, 0x01, 0x00, 0x00]),
             (
-                Request::Put(Transaction::from_slice(&[0x02, 0xF0]).expect("fits")),
-                vec![0x52, 0x57, 0x01, 0x07, 0x02, 0x00, 0x02, 0xF0],
+                Request::Put(Record::from_slice(&[0x02, 0xF0]).expect("fits")),
+                vec![0x52, 0x57, 0x01, 0x0E, 0x02, 0x00, 0x02, 0xF0],
             ),
             (
                 Request::Get(Slot::Pending),
@@ -127,10 +118,6 @@ mod tests {
                 Request::Clear(Slot::Signed),
                 vec![0x52, 0x57, 0x01, 0x0D, 0x01, 0x00, 0x01],
             ),
-            (
-                Request::Provision(Provisioning::from_slice(b"RPWL").expect("fits")),
-                vec![0x52, 0x57, 0x01, 0x0B, 0x04, 0x00, 0x52, 0x50, 0x57, 0x4C],
-            ),
         ];
 
         for (request, bytes) in expected {
@@ -140,7 +127,7 @@ mod tests {
 
     #[test]
     fn no_single_flipped_bit_turns_one_opcode_into_another() {
-        let opcodes = [STATUS, PUT, GET, CLEAR, PROVISION];
+        let opcodes = [STATUS, PUT, GET, CLEAR];
 
         for (index, first) in opcodes.iter().enumerate() {
             for second in opcodes.iter().skip(index + 1) {
@@ -155,14 +142,6 @@ mod tests {
     #[test]
     fn the_surviving_opcodes_keep_their_wire_values() {
         assert_eq!(Request::Status.opcode(), 0x01);
-        assert_eq!(
-            Request::Put(Transaction::from_slice(&[]).expect("fits")).opcode(),
-            0x07
-        );
-        assert_eq!(
-            Request::Provision(Provisioning::from_slice(&[]).expect("fits")).opcode(),
-            0x0B
-        );
     }
 
     #[test]
@@ -176,7 +155,7 @@ mod tests {
     #[test]
     fn the_retired_opcodes_are_rejected() {
         let mut buffer = [0u8; frame::MAX_FRAME_LEN];
-        for opcode in [0x02u8, 0x04, 0x05, 0x06, 0x09, 0x0C] {
+        for opcode in [0x02u8, 0x04, 0x05, 0x06, 0x07, 0x09, 0x0B, 0x0C] {
             let written = frame::encode(opcode, &[], &mut buffer).expect("encode");
             assert_eq!(
                 Request::decode(&buffer[..written]),
@@ -237,24 +216,21 @@ mod tests {
     }
 
     #[test]
-    fn a_transaction_larger_than_a_slot_record_is_rejected() {
-        let mut buffer = [0u8; frame::MAX_FRAME_LEN];
-        let payload = vec![0xA5u8; Transaction::CAPACITY + 1];
-        let written = frame::encode(super::PUT, &payload, &mut buffer).expect("encode");
+    fn a_put_carries_a_draft_record_under_its_own_opcode() {
         assert_eq!(
-            Request::decode(&buffer[..written]),
-            Err(Error::PayloadTooLarge(Transaction::CAPACITY + 1))
+            Request::Put(Record::from_slice(&[]).expect("fits")).opcode(),
+            0x0E
         );
     }
 
     #[test]
-    fn a_token_table_larger_than_one_frame_is_rejected() {
+    fn a_record_larger_than_a_draft_is_rejected() {
         let mut buffer = [0u8; frame::MAX_FRAME_LEN];
-        let payload = vec![0xA5u8; Provisioning::CAPACITY + 1];
-        let written = frame::encode(super::PROVISION, &payload, &mut buffer).expect("encode");
+        let payload = vec![0xA5u8; Record::CAPACITY + 1];
+        let written = frame::encode(super::PUT, &payload, &mut buffer).expect("encode");
         assert_eq!(
             Request::decode(&buffer[..written]),
-            Err(Error::PayloadTooLarge(Provisioning::CAPACITY + 1))
+            Err(Error::PayloadTooLarge(Record::CAPACITY + 1))
         );
     }
 }

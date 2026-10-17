@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Matrix" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:colorBackground">#000000</item>
+        <item name="android:colorBackgroundFloating">#000000</item>
+        <item name="android:textColorPrimary">#00FF41</item>
+        <item name="android:textColorSecondary">#00FF41</item>
+        <item name="android:textColorHint">#008F11</item>
+        <item name="android:textColorHighlight">#66008F11</item>
+        <item name="android:colorAccent">#00FF41</item>
+        <item name="android:colorControlNormal">#008F11</item>
+        <item name="android:colorControlActivated">#00FF41</item>
+        <item name="android:colorControlHighlight">#6600FF41</item>
+        <item name="android:colorButtonNormal">#003B00</item>
+        <item name="android:fontFamily">monospace</item>
+    </style>
+</resources>

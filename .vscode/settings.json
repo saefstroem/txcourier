@@ -15,5 +15,8 @@
   "rust-analyzer.linkedProjects": [
     "Cargo.toml",
     "crates/firmware/Cargo.toml"
-  ]
+  ],
+  "java.project.sourcePaths": ["android/src", "android/test"],
+  "java.project.referencedLibraries": ["android/sdk/android-35/android.jar"],
+  "java.project.outputPath": "android/out/vscode"
 }

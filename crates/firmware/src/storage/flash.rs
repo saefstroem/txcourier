@@ -22,7 +22,6 @@ type Program = unsafe extern "C" fn(u32, *const u8, usize);
 unsafe extern "C" {
     static __pending_sector: u8;
     static __signed_sector: u8;
-    static __token_table_sector: u8;
 }
 
 #[derive(Clone, Copy)]
@@ -54,14 +53,6 @@ impl Region {
     pub fn signed(record_len: usize) -> Self {
         Self {
             base: (&raw const __signed_sector) as usize,
-            record_len,
-        }
-    }
-
-    /// returns the token table region
-    pub fn token_table(record_len: usize) -> Self {
-        Self {
-            base: (&raw const __token_table_sector) as usize,
             record_len,
         }
     }

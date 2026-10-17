@@ -7,7 +7,6 @@ mod sector;
 pub use error::Error;
 pub use layout::SECTOR_LEN;
 pub use layout::SLOT_RECORD_LEN;
-pub use layout::TOKEN_TABLE_RECORD_LEN;
 pub use record::Kind;
 pub use record::Record;
 pub use record::Slot;

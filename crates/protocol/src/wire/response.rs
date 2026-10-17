@@ -16,7 +16,6 @@ const NO_REFUSAL: u8 = 0;
 pub enum Response {
     Status {
         state: u8,
-        provisioned: bool,
         refusal: Option<Refusal>,
         detail: u16,
     },
@@ -44,7 +43,6 @@ impl Response {
         match self {
             Self::Status {
                 state,
-                provisioned,
                 refusal,
                 detail,
             } => {
@@ -53,11 +51,7 @@ impl Response {
                     None => NO_REFUSAL,
                 };
                 let [high, low] = detail.to_be_bytes();
-                frame::encode(
-                    STATUS,
-                    &[state, u8::from(provisioned), reason, high, low],
-                    out,
-                )
+                frame::encode(STATUS, &[state, reason, high, low], out)
             }
             Self::Slot { transaction } => frame::encode(SLOT, transaction.as_slice(), out),
             Self::Acknowledged => frame::encode(ACKNOWLEDGED, &[], out),
@@ -73,12 +67,9 @@ impl Response {
 
         match decoded.opcode {
             STATUS => {
-                let &[state, provisioned, reason, high, low] = decoded.payload else {
+                let &[state, reason, high, low] = decoded.payload else {
                     return Err(Error::MalformedPayload);
                 };
-                if provisioned > 1 {
-                    return Err(Error::MalformedPayload);
-                }
                 let refusal = match reason {
                     NO_REFUSAL => None,
                     byte => match Refusal::from_byte(byte) {
@@ -88,7 +79,6 @@ impl Response {
                 };
                 Ok(Self::Status {
                     state,
-                    provisioned: provisioned == 1,
                     refusal,
                     detail: u16::from_be_bytes([high, low]),
                 })
@@ -137,7 +127,6 @@ mod tests {
         vec![
             Response::Status {
                 state: DeviceState::Idle.to_byte(),
-                provisioned: true,
                 refusal: None,
                 detail: 0,
             },
@@ -165,13 +154,10 @@ mod tests {
             (
                 Response::Status {
                     state: DeviceState::Idle.to_byte(),
-                    provisioned: true,
                     refusal: Some(Refusal::LedgerDeclined),
                     detail: 0x6985,
                 },
-                vec![
-                    0x52, 0x57, 0x01, 0x81, 0x05, 0x00, 0xA1, 0x01, 0x0E, 0x69, 0x85,
-                ],
+                vec![0x52, 0x57, 0x01, 0x81, 0x04, 0x00, 0xA1, 0x0E, 0x69, 0x85],
             ),
             (
                 Response::Slot {
@@ -216,7 +202,6 @@ mod tests {
         assert_eq!(
             Response::Status {
                 state: 0,
-                provisioned: false,
                 refusal: None,
                 detail: 0,
             }
@@ -265,7 +250,6 @@ mod tests {
         for state in states {
             let response = Response::Status {
                 state: state.to_byte(),
-                provisioned: true,
                 refusal: Some(Refusal::LedgerDeclined),
                 detail: 0x6985,
             };
@@ -277,7 +261,6 @@ mod tests {
     fn an_unrecognised_state_byte_still_round_trips_so_the_host_can_report_it() {
         let response = Response::Status {
             state: 0x00,
-            provisioned: false,
             refusal: None,
             detail: 0,
         };
@@ -297,8 +280,8 @@ mod tests {
     #[test]
     fn an_overlong_status_payload_is_rejected() {
         let mut buffer = [0u8; frame::MAX_FRAME_LEN];
-        let written = frame::encode(STATUS, &[0xA1, 0x00, 0x00, 0x00, 0x00, 0x00], &mut buffer)
-            .expect("encode");
+        let written =
+            frame::encode(STATUS, &[0xA1, 0x00, 0x00, 0x00, 0x00], &mut buffer).expect("encode");
         assert_eq!(
             Response::decode(&buffer[..written]),
             Err(Error::MalformedPayload)
@@ -309,18 +292,7 @@ mod tests {
     fn an_unknown_refusal_byte_in_a_status_is_rejected() {
         let mut buffer = [0u8; frame::MAX_FRAME_LEN];
         let written =
-            frame::encode(STATUS, &[0xA1, 0x00, 0xFE, 0x00, 0x00], &mut buffer).expect("encode");
-        assert_eq!(
-            Response::decode(&buffer[..written]),
-            Err(Error::MalformedPayload)
-        );
-    }
-
-    #[test]
-    fn a_status_provisioned_flag_outside_a_boolean_is_rejected() {
-        let mut buffer = [0u8; frame::MAX_FRAME_LEN];
-        let written =
-            frame::encode(STATUS, &[0xA1, 0x02, 0x00, 0x00, 0x00], &mut buffer).expect("encode");
+            frame::encode(STATUS, &[0xA1, 0xFE, 0x00, 0x00], &mut buffer).expect("encode");
         assert_eq!(
             Response::decode(&buffer[..written]),
             Err(Error::MalformedPayload)
