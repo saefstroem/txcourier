@@ -119,6 +119,9 @@ const FRAME_NUMBER_MASK: u16 = 0x7FF;
 const REPLY_START_TIMEOUT_US: u32 = 10;
 // Not fixed by any specification: the silence after which a reply is treated as ended.
 const REPLY_GAP_TIMEOUT_US: u32 = 7;
+// Not fixed by any specification: the longest full-speed data packet, SYNC, PID, 64 bytes and
+// CRC16 with bit stuffing, lasts about 53 us. A reply still running after this is not a packet.
+const REPLY_TIMEOUT_US: u32 = 200;
 // Not fixed by any specification; Pico-PIO-USB waits without a bound. One frame, so a stuck
 // transmit costs at most one SOF.
 const TRANSMIT_TIMEOUT_US: u32 = 1_000;
@@ -566,7 +569,8 @@ impl Bus {
         }
 
         let mut checksum = Checksum::new();
-        let mut last_activity = self.micros();
+        let started_at = self.micros();
+        let mut last_activity = started_at;
 
         loop {
             // read bytes from the PIO until we see an end of packet or timeout
@@ -585,6 +589,10 @@ impl Bus {
 
             // if we have not seen any activity for a while, break
             if self.micros().wrapping_sub(last_activity) > REPLY_GAP_TIMEOUT_US {
+                break;
+            }
+
+            if self.micros().wrapping_sub(started_at) > REPLY_TIMEOUT_US {
                 break;
             }
         }

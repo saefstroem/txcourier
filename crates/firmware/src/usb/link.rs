@@ -3,7 +3,6 @@ use usb_device::UsbError;
 use usb_device::bus::{UsbBus, UsbBusAllocator};
 use usb_device::device::{StringDescriptors, UsbDevice, UsbDeviceBuilder, UsbVidPid};
 
-use crate::usb::error::Error;
 use crate::usb::result::Result;
 use crate::usb::serial::{BULK_PACKET_SIZE, CdcAcmClass};
 
@@ -26,8 +25,8 @@ const SERIAL_NUMBER: &str = "0001";
 // One full frame plus one bulk packet. The HAL reports overflow rather than a short read, so
 // a whole packet must fit behind a partial frame.
 const INBOX_LEN: usize = MAX_FRAME_LEN + BULK_PACKET_SIZE as usize;
-// An iteration count, not a time. Exceeding it is an error, and any error out of serve halts
-// the device until power cycle.
+// An iteration count, not a time. Exceeding it drops the rest of the reply, and the phone
+// learns by timeout.
 const WRITE_POLL_LIMIT: u32 = 1_000_000;
 // Not fixed by any specification: 200 ms after a frame's first packet its remains are
 // dropped, so the next request is not spliced onto them.
@@ -135,7 +134,7 @@ impl<'a, B: UsbBus> Link<'a, B> {
         }
     }
 
-    pub fn write(&mut self, data: &[u8]) -> Result<()> {
+    pub fn write(&mut self, data: &[u8]) {
         // For each chunk
         for chunk in data.chunks(usize::from(BULK_PACKET_SIZE)) {
             let mut sent = false;
@@ -147,18 +146,15 @@ impl<'a, B: UsbBus> Link<'a, B> {
                         sent = true;
                         break;
                     }
-                    Err(UsbError::WouldBlock) => {
+                    Err(_) => {
                         self.poll();
                     }
-                    Err(error) => return Err(error.into()),
                 }
             }
 
             if !sent {
-                return Err(Error::Endpoint(UsbError::WouldBlock));
+                return;
             }
         }
-
-        Ok(())
     }
 }

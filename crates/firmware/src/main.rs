@@ -284,7 +284,7 @@ fn serve(
     };
 
     // Send the reply 
-    link.write(reply)?;
+    link.write(reply);
     Ok(())
 }
 
