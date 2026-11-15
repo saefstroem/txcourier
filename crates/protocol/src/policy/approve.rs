@@ -2,12 +2,12 @@ use crate::policy::error::Error;
 use crate::policy::result::Result;
 use crate::transaction::{SIGNED_ENVELOPE_GROWTH, Unsigned};
 use crate::transfer::classify;
-use crate::wire::TRANSACTION_CAPACITY;
+use crate::wire::{IDENTIFIER_LEN, TRANSACTION_CAPACITY};
 
 /// Verify an unsigned transaction to be correct in accordance with policy
 pub fn approve(unsigned: &[u8]) -> Result<()> {
-    // Ensure its within the size limits
-    if unsigned.len() + SIGNED_ENVELOPE_GROWTH > TRANSACTION_CAPACITY {
+    // Ensure its within the size limits and that identifier length is accounted for
+    if unsigned.len() + SIGNED_ENVELOPE_GROWTH + IDENTIFIER_LEN > TRANSACTION_CAPACITY {
         return Err(Error::TooLongToSign {
             len: unsigned.len(),
             capacity: TRANSACTION_CAPACITY,

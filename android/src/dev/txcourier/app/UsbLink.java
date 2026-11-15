@@ -59,10 +59,10 @@ public final class UsbLink implements Link, AutoCloseable {
 
     // Reads the specified number of bytes from the USB device.
     @Override
-    public byte[] read(int length) throws IOException {
+    public byte[] read(int length, int millis) throws IOException {
         byte[] into = new byte[length];
         // Calculate the deadline for the read operation based on the timeout.
-        long deadline = System.nanoTime() + TIMEOUT_MILLIS * 1_000_000L;
+        long deadline = System.nanoTime() + millis * 1_000_000L;
         int filled = 0;
         while (filled < length) {
             if (packetAt == packetLen) {

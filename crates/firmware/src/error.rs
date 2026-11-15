@@ -1,6 +1,7 @@
 use rp235x_hal as hal;
 
 use hal::clocks::ClockError;
+use hal::pio::InstallError;
 use hal::pll::Error as PllError;
 use hal::xosc::Error as XoscError;
 use txcourier_protocol::wire;
@@ -13,10 +14,12 @@ pub enum Error {
     CrystalOscillator,
     PhaseLockedLoop,
     ClockConfiguration,
+    Lamp,
     Host(host::Error),
     Storage(storage::Error),
     Usb(usb::Error),
     Wire(wire::Error),
+    UnknownChain,
 }
 
 impl From<host::Error> for Error {
@@ -58,5 +61,11 @@ impl From<PllError> for Error {
 impl From<ClockError> for Error {
     fn from(_: ClockError) -> Self {
         Self::ClockConfiguration
+    }
+}
+
+impl From<InstallError> for Error {
+    fn from(_: InstallError) -> Self {
+        Self::Lamp
     }
 }

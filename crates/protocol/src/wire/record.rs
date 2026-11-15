@@ -1,16 +1,23 @@
-use crate::draft::RECORD_LEN;
+use crate::bitcoin::RECORD_LEN as BITCOIN_RECORD_LEN;
+use crate::evm::RECORD_LEN;
 use crate::wire::bytes::Bytes;
 
-pub type Record = Bytes<RECORD_LEN>;
+pub type EVMRecord = Bytes<RECORD_LEN>;
+
+pub type BitcoinRecord = Bytes<BITCOIN_RECORD_LEN>;
+
+pub type Address = Bytes<ADDRESS_CAPACITY>;
+
+const ADDRESS_CAPACITY: usize = 64;
 
 #[cfg(test)]
 mod tests {
-    use super::Record;
-    use crate::draft::RECORD_LEN;
+    use super::EVMRecord;
+    use crate::evm::RECORD_LEN;
 
     #[test]
     fn a_record_fits_and_one_byte_more_does_not() {
-        assert!(Record::from_slice(&[0u8; RECORD_LEN]).is_ok());
-        assert!(Record::from_slice(&[0u8; RECORD_LEN + 1]).is_err());
+        assert!(EVMRecord::from_slice(&[0u8; RECORD_LEN]).is_ok());
+        assert!(EVMRecord::from_slice(&[0u8; RECORD_LEN + 1]).is_err());
     }
 }

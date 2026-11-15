@@ -51,11 +51,14 @@ Read these in full:
 
 `android/src/dev/txcourier/core/` is plain Java with nothing from Android: the transaction record the
 app hands the courier, the courier's wire protocol, and the fee and publish logic. The record names
-the asset, ETH, BNB, USDT, USDC or PAXG, and the chain. The courier looks that pair up in its own
-built-in list, `crates/protocol/src/token/known.rs`, builds the actual transaction with its own Rust
+the asset (ETH, BNB, USDT, USDC, or on Ethereum PAXG and the Ondo tokenized stocks VTIon, IEFAon,
+IEMGon and NVDAon) and the chain. The courier looks that pair up in its own built-in list, `crates/protocol/src/token/known.rs`, builds the actual transaction with its own Rust
 code, and the Ledger shows what it signs. Compare the contract addresses in that list with each
 issuer's site or the block explorer: the Ledger rejects a forged descriptor, but a genuine one for
-the wrong contract would pass.
+the wrong contract would pass. A Bitcoin record instead names your address, the one coin to spend,
+the recipient's address, the amount (or the whole coin) and the fee rate. Both addresses must be
+regular 42-character `bc1q` addresses. The courier turns them into scripts, works out the fee and
+any change in `crates/protocol/src/bitcoin/draft.rs`, and pays that change back to your own address.
 
 Then read `android/integrity.sh` and run it. Like `build.sh`, it runs in Termux, so read it first.
 
@@ -64,7 +67,10 @@ sh android/integrity.sh
 ```
 
 It confirms the checkout is clean, and that the app names nothing beyond the USB manager, HTTPS, the
-six nodes and two explorer links in `Chain.java`, and Google's download server in `build.sh`. It
+six nodes and two explorer links in `Chain.java`, mempool.space's API and transaction link in
+`BitcoinExplorer.java`, and Google's download server in `build.sh`. The account screens send your
+address to those nodes, or to mempool.space, when you ask for a balance or send bitcoin, so they
+learn that the address is yours and see your IP address. It
 checks the node requests, the courier writes, the manifest and the courier's USB IDs against values
 written out in the script. Every line must read `ok`, and the last line names the commit, which must
 be the one you reviewed.

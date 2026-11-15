@@ -14,5 +14,5 @@ if grep -nE '^[[:space:]]+(public |private |protected |static |final |sealed |ab
 fi
 rm -rf "$out"
 "${JAVAC:-javac}" --release 17 -Xlint:all -Werror -d "$out" "$src"/core/*.java "$here"/*.java
-"${JAVA:-java}" -cp "$out" CoreCheck
+"${JAVA:-java}" -cp "$out" CoreCheck "$here/../../crates/protocol/src/token/known.rs"
 echo "ok    CoreCheck"

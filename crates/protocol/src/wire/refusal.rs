@@ -1,4 +1,4 @@
-use crate::{draft, policy, slots, store};
+use crate::{bitcoin, evm, policy, slots, store};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -21,66 +21,15 @@ pub enum Refusal {
     TooPrecise = 19,
     AmountTooLarge = 20,
     RecipientIsContract = 21,
+    MalformedBitcoin = 22,
+    CoinShort = 23,
+    UnknownChain = 24,
+    DustPayment = 25,
 }
 
 impl Refusal {
-    // Every variant, so the round-trip test fails if one is added without a byte.
-    pub const ALL: [Self; 18] = [
-        Self::BothSlotsOccupied,
-        Self::PendingAlreadyStored,
-        Self::SignedNotCollected,
-        Self::NothingToSign,
-        Self::NothingSigned,
-        Self::MalformedTransaction,
-        Self::NotATransfer,
-        Self::TooLarge,
-        Self::StorageFull,
-        Self::NoTokenDescriptor,
-        Self::NoLedger,
-        Self::LedgerDeclined,
-        Self::LedgerFailed,
-        Self::SigningTimedOut,
-        Self::UnknownAsset,
-        Self::TooPrecise,
-        Self::AmountTooLarge,
-        Self::RecipientIsContract,
-    ];
-
     pub const fn to_byte(self) -> u8 {
         self as u8
-    }
-
-    pub fn from_byte(byte: u8) -> Option<Self> {
-        Self::ALL
-            .into_iter()
-            .find(|refusal| refusal.to_byte() == byte)
-    }
-
-    pub const fn describe(self) -> &'static str {
-        match self {
-            Self::BothSlotsOccupied => "both slots are occupied, which must never happen",
-            Self::PendingAlreadyStored => "a pending transaction is already stored",
-            Self::SignedNotCollected => "a signed transaction is waiting to be collected",
-            Self::NothingToSign => "there is no pending transaction",
-            Self::NothingSigned => "there is no signed transaction",
-            Self::MalformedTransaction => "the transaction is not a well-formed EIP-1559 envelope",
-            Self::NotATransfer => "the transaction is not a plain transfer",
-            Self::TooLarge => "the payload is larger than the device can store",
-            Self::StorageFull => "the storage sector cannot take another record",
-            Self::NoTokenDescriptor => {
-                "that token has no Ledger-signed descriptor, so it could only be blind signed"
-            }
-            Self::NoLedger => "no Ledger answered on the USB-A port",
-            Self::LedgerDeclined => "you declined the transaction on the Ledger",
-            Self::LedgerFailed => "the Ledger did not complete the signature",
-            Self::SigningTimedOut => "the Ledger was not approved in time",
-            Self::UnknownAsset => "that asset is not built in for that chain",
-            Self::TooPrecise => "the amount has more decimal places than its asset",
-            Self::AmountTooLarge => "the amount is more than 128 bits of base units",
-            Self::RecipientIsContract => {
-                "the recipient is the token's own contract, and tokens sent there are usually lost"
-            }
-        }
     }
 }
 
@@ -115,16 +64,25 @@ impl From<store::Error> for Refusal {
     }
 }
 
-impl From<draft::Error> for Refusal {
-    fn from(error: draft::Error) -> Self {
+impl From<evm::Error> for Refusal {
+    fn from(error: evm::Error) -> Self {
         match error {
-            draft::Error::WrongLength(_) | draft::Error::Transaction(_) => {
-                Self::MalformedTransaction
-            }
-            draft::Error::UnknownAsset => Self::UnknownAsset,
-            draft::Error::TooPrecise => Self::TooPrecise,
-            draft::Error::AmountTooLarge => Self::AmountTooLarge,
-            draft::Error::RecipientIsContract => Self::RecipientIsContract,
+            evm::Error::WrongLength(_) | evm::Error::Transaction(_) => Self::MalformedTransaction,
+            evm::Error::UnknownAsset => Self::UnknownAsset,
+            evm::Error::TooPrecise => Self::TooPrecise,
+            evm::Error::AmountTooLarge => Self::AmountTooLarge,
+            evm::Error::RecipientIsContract => Self::RecipientIsContract,
+        }
+    }
+}
+
+impl From<bitcoin::Error> for Refusal {
+    fn from(error: bitcoin::Error) -> Self {
+        match error {
+            bitcoin::Error::Malformed => Self::MalformedBitcoin,
+            bitcoin::Error::Short => Self::CoinShort,
+            bitcoin::Error::Dust => Self::DustPayment,
+            bitcoin::Error::OutputTooSmall(_) => Self::TooLarge,
         }
     }
 }
@@ -132,14 +90,15 @@ impl From<draft::Error> for Refusal {
 #[cfg(test)]
 mod tests {
     use super::Refusal;
-    use crate::draft;
+    use crate::bitcoin;
+    use crate::evm;
     use crate::policy;
     use crate::slots;
     use crate::store;
     use crate::transaction;
     use crate::transfer;
 
-    const WIRE_BYTES: [(Refusal, u8); 18] = [
+    const WIRE_BYTES: [(Refusal, u8); 22] = [
         (Refusal::BothSlotsOccupied, 1),
         (Refusal::PendingAlreadyStored, 2),
         (Refusal::SignedNotCollected, 3),
@@ -158,54 +117,52 @@ mod tests {
         (Refusal::TooPrecise, 19),
         (Refusal::AmountTooLarge, 20),
         (Refusal::RecipientIsContract, 21),
+        (Refusal::MalformedBitcoin, 22),
+        (Refusal::CoinShort, 23),
+        (Refusal::UnknownChain, 24),
+        (Refusal::DustPayment, 25),
     ];
 
     #[test]
     fn every_refusal_keeps_the_wire_byte_the_host_already_knows() {
-        assert_eq!(WIRE_BYTES.len(), Refusal::ALL.len());
         for (refusal, byte) in WIRE_BYTES {
             assert_eq!(refusal.to_byte(), byte, "{refusal:?}");
-            assert!(Refusal::ALL.contains(&refusal), "{refusal:?}");
         }
     }
 
     #[test]
-    fn every_refusal_round_trips_through_its_byte() {
-        for refusal in Refusal::ALL {
-            assert_eq!(Refusal::from_byte(refusal.to_byte()), Some(refusal));
-        }
-    }
-
-    #[test]
-    fn zero_is_not_a_refusal() {
-        assert_eq!(Refusal::from_byte(0), None);
-        assert_eq!(Refusal::from_byte(0xFF), None);
-    }
-
-    #[test]
-    fn the_retired_token_table_refusal_is_not_reused() {
-        assert_eq!(Refusal::from_byte(10), None);
-    }
-
-    #[test]
-    fn every_draft_error_maps_to_its_refusal() {
+    fn every_evm_error_maps_to_its_refusal() {
         let pairs = [
-            (draft::Error::WrongLength(0), Refusal::MalformedTransaction),
+            (evm::Error::WrongLength(0), Refusal::MalformedTransaction),
             (
-                draft::Error::Transaction(transaction::Error::Empty),
+                evm::Error::Transaction(transaction::Error::Empty),
                 Refusal::MalformedTransaction,
             ),
-            (draft::Error::UnknownAsset, Refusal::UnknownAsset),
-            (draft::Error::TooPrecise, Refusal::TooPrecise),
-            (draft::Error::AmountTooLarge, Refusal::AmountTooLarge),
+            (evm::Error::UnknownAsset, Refusal::UnknownAsset),
+            (evm::Error::TooPrecise, Refusal::TooPrecise),
+            (evm::Error::AmountTooLarge, Refusal::AmountTooLarge),
             (
-                draft::Error::RecipientIsContract,
+                evm::Error::RecipientIsContract,
                 Refusal::RecipientIsContract,
             ),
         ];
         for (error, refusal) in pairs {
             assert_eq!(Refusal::from(error), refusal);
         }
+    }
+
+    #[test]
+    fn every_bitcoin_error_maps_to_its_refusal() {
+        assert_eq!(
+            Refusal::from(bitcoin::Error::Malformed),
+            Refusal::MalformedBitcoin
+        );
+        assert_eq!(Refusal::from(bitcoin::Error::Short), Refusal::CoinShort);
+        assert_eq!(Refusal::from(bitcoin::Error::Dust), Refusal::DustPayment);
+        assert_eq!(
+            Refusal::from(bitcoin::Error::OutputTooSmall(0)),
+            Refusal::TooLarge
+        );
     }
 
     #[test]

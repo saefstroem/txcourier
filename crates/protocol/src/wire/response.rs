@@ -1,5 +1,5 @@
-use crate::wire::error::Error;
 use crate::wire::frame;
+use crate::wire::record::Address;
 use crate::wire::refusal::Refusal;
 use crate::wire::result::Result;
 use crate::wire::transaction::Transaction;
@@ -8,6 +8,7 @@ const STATUS: u8 = 0x81;
 const SLOT: u8 = 0x87;
 const ACKNOWLEDGED: u8 = 0x88;
 const REFUSED: u8 = 0x8E;
+const ADDRESS: u8 = 0x90;
 
 // No Refusal is numbered 0
 const NO_REFUSAL: u8 = 0;
@@ -27,18 +28,12 @@ pub enum Response {
         refusal: Refusal,
         detail: u16,
     },
+    Address {
+        address: Address,
+    },
 }
 
 impl Response {
-    pub const fn opcode(self) -> u8 {
-        match self {
-            Self::Status { .. } => STATUS,
-            Self::Slot { .. } => SLOT,
-            Self::Acknowledged => ACKNOWLEDGED,
-            Self::Refused { .. } => REFUSED,
-        }
-    }
-
     pub fn encode(self, out: &mut [u8]) -> Result<usize> {
         match self {
             Self::Status {
@@ -59,47 +54,7 @@ impl Response {
                 let [high, low] = detail.to_be_bytes();
                 frame::encode(REFUSED, &[refusal.to_byte(), high, low], out)
             }
-        }
-    }
-
-    pub fn decode(frame: &[u8]) -> Result<Self> {
-        let decoded = frame::decode(frame)?;
-
-        match decoded.opcode {
-            STATUS => {
-                let &[state, reason, high, low] = decoded.payload else {
-                    return Err(Error::MalformedPayload);
-                };
-                let refusal = match reason {
-                    NO_REFUSAL => None,
-                    byte => match Refusal::from_byte(byte) {
-                        Some(refusal) => Some(refusal),
-                        None => return Err(Error::MalformedPayload),
-                    },
-                };
-                Ok(Self::Status {
-                    state,
-                    refusal,
-                    detail: u16::from_be_bytes([high, low]),
-                })
-            }
-            SLOT => Transaction::from_slice(decoded.payload)
-                .map(|transaction| Self::Slot { transaction }),
-            ACKNOWLEDGED if decoded.payload.is_empty() => Ok(Self::Acknowledged),
-            ACKNOWLEDGED => Err(Error::MalformedPayload),
-            REFUSED => {
-                let &[byte, high, low] = decoded.payload else {
-                    return Err(Error::MalformedPayload);
-                };
-                let Some(refusal) = Refusal::from_byte(byte) else {
-                    return Err(Error::MalformedPayload);
-                };
-                Ok(Self::Refused {
-                    refusal,
-                    detail: u16::from_be_bytes([high, low]),
-                })
-            }
-            other => Err(Error::UnknownOpcode(other)),
+            Self::Address { address } => frame::encode(ADDRESS, address.as_slice(), out),
         }
     }
 }
@@ -107,7 +62,8 @@ impl Response {
 #[cfg(test)]
 mod tests {
     use super::ACKNOWLEDGED;
-    use super::Error;
+    use super::ADDRESS;
+    use super::Address;
     use super::REFUSED;
     use super::Refusal;
     use super::Response;
@@ -123,34 +79,9 @@ mod tests {
         buffer[..written].to_vec()
     }
 
-    fn every_response() -> Vec<Response> {
-        vec![
-            Response::Status {
-                state: DeviceState::Idle.to_byte(),
-                refusal: None,
-                detail: 0,
-            },
-            Response::Slot {
-                transaction: Transaction::from_slice(&[0x02, 0xF0]).expect("fits"),
-            },
-            Response::Acknowledged,
-            Response::Refused {
-                refusal: Refusal::LedgerDeclined,
-                detail: 0x6985,
-            },
-        ]
-    }
-
-    #[test]
-    fn every_response_round_trips() {
-        for response in every_response() {
-            assert_eq!(Response::decode(&encoded(response)), Ok(response));
-        }
-    }
-
     #[test]
     fn the_encoded_bytes_of_every_response_are_pinned() {
-        let expected: [(Response, Vec<u8>); 4] = [
+        let expected: [(Response, Vec<u8>); 5] = [
             (
                 Response::Status {
                     state: DeviceState::Idle.to_byte(),
@@ -176,6 +107,12 @@ mod tests {
                 },
                 vec![0x52, 0x57, 0x01, 0x8E, 0x03, 0x00, 0x0E, 0x69, 0x85],
             ),
+            (
+                Response::Address {
+                    address: Address::from_slice(b"0x").expect("fits"),
+                },
+                vec![0x52, 0x57, 0x01, 0x90, 0x02, 0x00, 0x30, 0x78],
+            ),
         ];
 
         for (response, bytes) in expected {
@@ -185,7 +122,7 @@ mod tests {
 
     #[test]
     fn no_single_flipped_bit_turns_one_opcode_into_another() {
-        let opcodes = [STATUS, SLOT, ACKNOWLEDGED, REFUSED];
+        let opcodes = [STATUS, SLOT, ACKNOWLEDGED, REFUSED, ADDRESS];
 
         for (index, first) in opcodes.iter().enumerate() {
             for second in opcodes.iter().skip(index + 1) {
@@ -196,161 +133,5 @@ mod tests {
                 );
             }
         }
-    }
-    #[test]
-    fn the_surviving_opcodes_keep_their_wire_values() {
-        assert_eq!(
-            Response::Status {
-                state: 0,
-                refusal: None,
-                detail: 0,
-            }
-            .opcode(),
-            0x81
-        );
-        assert_eq!(
-            Response::Slot {
-                transaction: Transaction::from_slice(&[]).expect("fits"),
-            }
-            .opcode(),
-            0x87
-        );
-        assert_eq!(Response::Acknowledged.opcode(), 0x88);
-        assert_eq!(
-            Response::Refused {
-                refusal: Refusal::LedgerDeclined,
-                detail: 0,
-            }
-            .opcode(),
-            0x8E
-        );
-    }
-
-    #[test]
-    fn the_retired_diagnostic_opcodes_are_rejected() {
-        let mut buffer = [0u8; frame::MAX_FRAME_LEN];
-        for opcode in [0x82u8, 0x84, 0x85, 0x86] {
-            let written = frame::encode(opcode, &[], &mut buffer).expect("encode");
-            assert_eq!(
-                Response::decode(&buffer[..written]),
-                Err(Error::UnknownOpcode(opcode)),
-                "{opcode:#04x}"
-            );
-        }
-    }
-
-    #[test]
-    fn every_device_state_round_trips() {
-        let states = [
-            DeviceState::Idle,
-            DeviceState::PendingStored,
-            DeviceState::SignedStored,
-        ];
-
-        for state in states {
-            let response = Response::Status {
-                state: state.to_byte(),
-                refusal: Some(Refusal::LedgerDeclined),
-                detail: 0x6985,
-            };
-            assert_eq!(Response::decode(&encoded(response)), Ok(response));
-        }
-    }
-
-    #[test]
-    fn an_unrecognised_state_byte_still_round_trips_so_the_host_can_report_it() {
-        let response = Response::Status {
-            state: 0x00,
-            refusal: None,
-            detail: 0,
-        };
-        assert_eq!(Response::decode(&encoded(response)), Ok(response));
-    }
-
-    #[test]
-    fn an_empty_status_payload_is_rejected() {
-        let mut buffer = [0u8; frame::MAX_FRAME_LEN];
-        let written = frame::encode(STATUS, &[], &mut buffer).expect("encode");
-        assert_eq!(
-            Response::decode(&buffer[..written]),
-            Err(Error::MalformedPayload)
-        );
-    }
-
-    #[test]
-    fn an_overlong_status_payload_is_rejected() {
-        let mut buffer = [0u8; frame::MAX_FRAME_LEN];
-        let written =
-            frame::encode(STATUS, &[0xA1, 0x00, 0x00, 0x00, 0x00], &mut buffer).expect("encode");
-        assert_eq!(
-            Response::decode(&buffer[..written]),
-            Err(Error::MalformedPayload)
-        );
-    }
-
-    #[test]
-    fn an_unknown_refusal_byte_in_a_status_is_rejected() {
-        let mut buffer = [0u8; frame::MAX_FRAME_LEN];
-        let written =
-            frame::encode(STATUS, &[0xA1, 0xFE, 0x00, 0x00], &mut buffer).expect("encode");
-        assert_eq!(
-            Response::decode(&buffer[..written]),
-            Err(Error::MalformedPayload)
-        );
-    }
-
-    #[test]
-    fn the_storage_responses_round_trip() {
-        for bytes in [
-            vec![],
-            vec![0x02, 0xF0],
-            vec![0x5Au8; Transaction::CAPACITY],
-        ] {
-            let response = Response::Slot {
-                transaction: Transaction::from_slice(&bytes).expect("fits"),
-            };
-            assert_eq!(Response::decode(&encoded(response)), Ok(response));
-        }
-
-        assert_eq!(
-            Response::decode(&encoded(Response::Acknowledged)),
-            Ok(Response::Acknowledged)
-        );
-
-        for refusal in Refusal::ALL {
-            for detail in [0u16, 0x6985, 0xFFFF] {
-                let response = Response::Refused { refusal, detail };
-                assert_eq!(Response::decode(&encoded(response)), Ok(response));
-            }
-        }
-    }
-
-    #[test]
-    fn an_unknown_refusal_byte_is_rejected() {
-        let mut buffer = [0u8; frame::MAX_FRAME_LEN];
-        for payload in [
-            &[][..],
-            &[0, 0, 0][..],
-            &[0xFF, 0, 0][..],
-            &[1][..],
-            &[1, 0, 0, 0][..],
-        ] {
-            let written = frame::encode(REFUSED, payload, &mut buffer).expect("encode");
-            assert_eq!(
-                Response::decode(&buffer[..written]),
-                Err(Error::MalformedPayload),
-                "{payload:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn an_unknown_opcode_is_rejected() {
-        let mut buffer = [0u8; frame::MAX_FRAME_LEN];
-        let written = frame::encode(0x7F, &[0xA1], &mut buffer).expect("encode");
-        assert_eq!(
-            Response::decode(&buffer[..written]),
-            Err(Error::UnknownOpcode(0x7F))
-        );
     }
 }

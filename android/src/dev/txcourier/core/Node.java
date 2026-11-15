@@ -2,6 +2,8 @@ package dev.txcourier.core;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.BiConsumer;
 
 public final class Node {
@@ -19,6 +21,24 @@ public final class Node {
             }
         }
         throw new IOException("could not fetch fees (" + failure + "), enter them by hand");
+    }
+
+    public static List<String> balances(Rpc rpc, Chain chain, String address) throws IOException {
+        String failure = "no node is known for " + chain;
+        for (String url : chain.rpc()) {
+            try {
+                List<String> lines = new ArrayList<>();
+                lines.add(Text.amount(rpc.balance(url, address), Tx.COIN_DECIMALS) + " " + chain.symbol());
+                for (Token token : chain.tokens()) {
+                    lines.add(Text.amount(rpc.tokenBalance(url, token.contract(), address), token.decimals()) + " "
+                            + token.symbol());
+                }
+                return lines;
+            } catch (Throwable unusable) {
+                failure = Text.reason(unusable);
+            }
+        }
+        throw new IOException("could not fetch balances (" + failure + ")");
     }
 
     // Raises the suggested priority fee by 50% for faster inclusion of the transaction.

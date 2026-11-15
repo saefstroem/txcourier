@@ -1,6 +1,6 @@
 use crate::ledger::apdu::MAX_DATA_LEN;
 use crate::ledger::error::Error;
-use crate::ledger::path::encode as encode_path;
+use crate::ledger::ethereum::path::encode as encode_path;
 use crate::ledger::result::Result;
 use crate::transaction::{SIGNATURE_WORD_LEN, Signature};
 
@@ -134,8 +134,8 @@ mod tests {
     use super::FIRST_CHUNK;
     use super::LATER_CHUNK;
     use super::signature;
-    use crate::ledger::path::DEFAULT_ACCOUNT;
-    use crate::ledger::path::PATH_LEN;
+    use crate::ledger::ethereum::path::DEFAULT_ACCOUNT;
+    use crate::ledger::ethereum::path::PATH_LEN;
     use crate::transaction;
 
     fn collected(transaction: &[u8]) -> Vec<(u8, Vec<u8>)> {

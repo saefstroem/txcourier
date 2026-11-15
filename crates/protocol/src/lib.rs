@@ -14,13 +14,12 @@
 
 mod bus;
 mod crc32;
-mod error;
 mod lamp;
-mod result;
 
 mod state;
 
-pub mod draft;
+pub mod bitcoin;
+pub mod evm;
 pub mod ledger;
 pub mod policy;
 pub mod rlp;
@@ -33,8 +32,6 @@ pub mod usb;
 pub mod wire;
 
 pub use bus::BUS_SAMPLES;
-pub use error::Error;
 pub use lamp::lamp_is_lit;
-pub use result::Result;
 pub use state::DeviceState;
 pub use state::FAULT_BYTE;

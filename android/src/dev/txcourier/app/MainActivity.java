@@ -15,14 +15,19 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
+import dev.txcourier.core.Bitcoin;
 import dev.txcourier.core.Chain;
 import dev.txcourier.core.Courier;
 import dev.txcourier.core.Node;
 import dev.txcourier.core.Text;
 import dev.txcourier.core.Tx;
+import dev.txcourier.core.UnspentOutput;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -37,7 +42,7 @@ public final class MainActivity extends Activity {
     private static final int GUTTER_DP = 16; // standard padding around the page
     private static final int BUTTON_GAP_DP = 16; // gap between buttons
     private static final int CONFIRM_GAP_DP = 64; // gap before confirmation sections
-    private static final List<String> ASSETS = List.of("ETH", "BNB", "USDT", "USDC", "PAXG");
+    private static final List<String> ASSETS = List.of("ETH", "BNB", "USDT", "USDC", "PAXG", "VTIon", "IEFAon", "IEMGon", "NVDAon");
 
     // Executor services for handling USB and network operations.
     private final ExecutorService usbThread = Executors.newSingleThreadExecutor();
@@ -48,6 +53,7 @@ public final class MainActivity extends Activity {
     private LinearLayout page;
     private Object screen;
     private volatile Chain handedOver;
+    private final Map<Byte, String> addresses = new HashMap<>();
 
     @Override
     protected void onCreate(Bundle saved) {
@@ -74,6 +80,8 @@ public final class MainActivity extends Activity {
         blank(); // clear screen
         say("txcourier " + version()); // display the app version
         button("Show status", this::status); // show the current status
+        button("EVM account", () -> account(Courier.ETHEREUM_IDENTIFIER)); // show the Ethereum account
+        button("Bitcoin account", () -> account(Courier.BITCOIN_IDENTIFIER)); // show the Bitcoin account
         button("Send", this::send); // initiate a new transaction
         button("Show the signed transaction", this::signed); // display the signed transaction
         button("Clear the pending transaction", () -> discard(Courier.PENDING, "pending")); // clear the pending transaction
@@ -83,6 +91,71 @@ public final class MainActivity extends Activity {
     private void status() {
         open(); // call open to prepare the screen for displaying status
         courier(Courier::status, this::lines); // fetch and display the current status
+    }
+
+    // Shows an account based on the users requested account type
+    private void account(byte account) {
+        open(); // opens main screen
+        boolean evm = account == Courier.ETHEREUM_IDENTIFIER; // detect whihc account user wants to see
+        String address = addresses.get(account); // get the address for the requested account type
+        if (address == null) { // if the address is not yet known, prompt the user to read it from the Ledger
+            say("plug the Ledger into the courier, unlock it and open its " + (evm ? "Ethereum" : "Bitcoin") + " app");
+            button("Read the address from the Ledger", () -> courier(courier -> courier.address(account, false), read -> { // request address from ledger
+                addresses.put(account, read);
+                account(account);
+            }));
+            return;
+        }
+        // display the address and provide options to show it on the Ledger or check balances
+        say(evm ? "address on EVM, m/44'/60'/0'/0/0" : "native segwit rcv address, m/84'/0'/0'/0/0");
+        say(address);
+        button("Show it on the Ledger", () -> { // show the address on the Ledger for user verification
+            say("compare the Ledger's screen with the address above, then approve it there");
+            courier(courier -> courier.address(account, true), shown -> say(shown.equals(address)
+                    ? ":) Ledger shows the same address"
+                    : "x Ledger shows " + shown + ", which is not the address above"));
+        });
+        if (evm) { // if the account is an EVM account, show balances for each known chain
+            for (Chain chain : Chain.KNOWN) { // for each known EVM chain, provide a button to check balances
+                button(chain.name() + " balances", () -> {
+                    open();
+                    say(chain + " " + address);
+                    run(networkThread, () -> Node.balances(rpc, chain, address), this::lines); // read the balances then print lines with it
+                });
+            }
+        } else {
+            button("Bitcoin balance", () -> { // read the ledgers bitcoin balance
+                open();
+                say("Bitcoin " + address);
+                run(networkThread, () -> BitcoinExplorer.balance(address), this::say); // get the balance and state it
+            });
+            button("Send bitcoin", () -> sendBitcoin(address)); // request to send bitcoin
+        }
+    }
+
+    private void sendBitcoin(String address) {
+        open();
+        say("coins of " + address); // display the coins available at the address
+        run(networkThread, () -> BitcoinExplorer.coins(address), coins -> { // fetch the UTXOs at the address
+            if (coins.isEmpty()) {
+                say("this address has no coins to spend"); // inform the user that there are no UTXOs
+                return;
+            }
+            Spinner coin = spinner(coins); // let the user select a UTXO to spend
+            EditText to = field("Recipient (bc1q...)", TEXT); // input for the recipient address
+            EditText amount = field("Amount in BTC (leave empty to send the whole coin)", DECIMAL); // input for the amount to send
+            EditText rate = field("Fee rate in sat/vB", DECIMAL); // input for the fee rate
+            button("Review", () -> { // button to review the transaction before sending
+                byte[] record = Bitcoin.build(address, (UnspentOutput) coin.getSelectedItem(), text(to), text(amount), text(rate)); // build the tx
+                open();
+                lines(Bitcoin.describe(record)); // describe the transaction for review
+                confirm("Hand this transaction to the courier?", () -> courier(courier -> { // send the transaction to the courier for signing
+                    courier.putBitcoin(record); // hand the built transaction to the courier for signing
+                    return ":) courier is holding the transaction, plug in the Ledger and open its Bitcoin app to sign it."
+                            + " Compare the recipient address it shows with yours, to the last character"; // inform the user to sign the tx with the Ledger
+                }, this::say));
+            });
+        });
     }
 
     private void send() {
@@ -131,7 +204,7 @@ public final class MainActivity extends Activity {
         lines(lines);
         // ask the user to confirm handing the transaction to the courier
         confirm("Hand this transaction to the courier?", () -> courier(courier -> {
-            courier.put(record);
+            courier.putEVM(record);
             handedOver = chain;
             return ":) courier is holding the transaction, plug in the Ledger to sign it";
         }, this::say));
@@ -145,17 +218,27 @@ public final class MainActivity extends Activity {
                 say("there is no signed transaction");
                 return;
             }
-            say(Text.hex(bytes));
+            byte[] signed = Arrays.copyOfRange(bytes, 1, bytes.length);
+            say(Text.hex(signed));
+            if (bytes[0] == Courier.BITCOIN_IDENTIFIER) { // check if the transaction is signed for Bitcoin
+                confirm("Publish it on Bitcoin? This cannot be undone.",
+                        () -> run(networkThread, () -> BitcoinExplorer.publish(signed), this::say));
+                return;
+            }
+            if (bytes[0] != Courier.ETHEREUM_IDENTIFIER) {
+                say("x courier's signed transaction has no Ethereum or Bitcoin identifier");
+                return;
+            }
             Chain chain = handedOver;
             if (chain != null) {
-                confirm("Publish it on " + chain + "? This cannot be undone.", () -> publish(chain, bytes));
+                confirm("Publish it on " + chain + "? This cannot be undone.", () -> publish(chain, signed));
                 return;
             }
             say("this app has not handed a transaction to the courier since it started, so it does not know the chain."
                     + " Choose the chain the transaction was made for. Its nodes refuse it if the choice is wrong.");
             button("No", this::menu);
             for (Chain known : Chain.KNOWN) {
-                hold("Hold to publish on " + known, () -> publish(known, bytes));
+                hold("Hold to publish on " + known, () -> publish(known, signed));
             }
         });
     }

@@ -18,7 +18,7 @@ public final class ScriptedLink implements Link {
     }
 
     @Override
-    public byte[] read(int length) throws IOException {
+    public byte[] read(int length, int millis) throws IOException {
         if (at + length > reply.length) {
             throw new IOException("end of stream");
         }

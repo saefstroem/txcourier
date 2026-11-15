@@ -17,8 +17,8 @@ public final class Tx {
     private static final int ADDRESS_LEN = 20;
     private static final int QUANTITY_LEN = 16;
     private static final BigInteger COIN_GAS = BigInteger.valueOf(21_000);
-    private static final BigInteger TOKEN_GAS = BigInteger.valueOf(100_000);
-    private static final int COIN_DECIMALS = 18;
+    private static final BigInteger TOKEN_GAS = BigInteger.valueOf(150_000); // allow for additional gas for token transfers
+    public static final int COIN_DECIMALS = 18;
     private static final int MOST_DECIMALS = 18;
     private static final int GWEI_DECIMALS = 9;
 
@@ -104,7 +104,7 @@ public final class Tx {
     }
 
     // Parses a human-readable amount into its base unit representation.
-    private static BigInteger parsed(String name, String typed, int decimals) {
+    static BigInteger parsed(String name, String typed, int decimals) {
         try {
             return Text.amount(typed, decimals);
         } catch (IllegalArgumentException unusable) {

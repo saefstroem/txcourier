@@ -57,7 +57,7 @@ public final class Text {
 
     // Cleans the input text by removing control characters and certain Unicode formatting characters, truncating if necessary.
     public static String clean(String text) {
-        String kept = text.replaceAll("[\\p{Cc}\\u202A-\\u202E\\u2066-\\u2069]", "");
+        String kept = text.replaceAll("[\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}]", "");
         return kept.length() > MAX_SHOWN ? kept.substring(0, MAX_SHOWN) : kept;
     }
 

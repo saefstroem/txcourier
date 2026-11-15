@@ -1,4 +1,5 @@
 mod bytes;
+mod chain;
 mod error;
 mod frame;
 mod packet;
@@ -10,12 +11,17 @@ mod result;
 mod slot;
 mod transaction;
 
+pub use bytes::Bytes;
+pub use chain::Chain;
+pub use chain::IDENTIFIER_LEN;
 pub use error::Error;
 pub use frame::HEADER_LEN;
 pub use frame::MAX_FRAME_LEN;
 pub use frame::frame_len;
 pub use packet::Packet;
-pub use record::Record;
+pub use record::Address;
+pub use record::BitcoinRecord;
+pub use record::EVMRecord;
 pub use refusal::Refusal;
 pub use request::Request;
 pub use response::Response;

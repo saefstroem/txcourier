@@ -28,6 +28,16 @@ public final class FakeRpc implements Rpc {
         return (String) next(url, "send");
     }
 
+    @Override
+    public BigInteger balance(String url, String address) throws IOException {
+        return (BigInteger) next(url, "balance");
+    }
+
+    @Override
+    public BigInteger tokenBalance(String url, String contract, String address) throws IOException {
+        return (BigInteger) next(url, "token " + contract);
+    }
+
     private Object next(String url, String method) throws IOException {
         calls.add(method + " " + url);
         Deque<Object> answers = replies.get(url);
