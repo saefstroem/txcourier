@@ -42,7 +42,7 @@ check "redirects are not followed" \
     "dev/txcourier/app/HttpRpc.java:1 "
 check "only these node requests" \
     "$(grep -rhoE '"eth_[A-Za-z]+"' "$here/src" | sort -u | tr '\n' ' ')" \
-    '"eth_call" "eth_feeHistory" "eth_getBalance" "eth_maxPriorityFeePerGas" "eth_sendRawTransaction" '
+    '"eth_call" "eth_feeHistory" "eth_getBalance" "eth_getTransactionCount" "eth_maxPriorityFeePerGas" "eth_sendRawTransaction" '
 check "courier writes and publishing are five calls, all in MainActivity" \
     "$(lines_in_src 'courier\.(putEVM|putBitcoin|clear)\(|(Node|BitcoinExplorer)\.publish\(')" \
     "dev/txcourier/app/MainActivity.java:5 "

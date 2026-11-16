@@ -41,6 +41,25 @@ public final class Node {
         throw new IOException("could not fetch balances (" + failure + ")");
     }
 
+    public static BigInteger checkNonce(Rpc rpc, Chain chain, String address, String typed) throws IOException {
+        BigInteger nonce = Tx.parsed("nonce", typed, 0);
+        String failure = "no node is known for " + chain;
+        for (String url : chain.rpc()) {
+            BigInteger next;
+            try {
+                next = rpc.nonce(url, address);
+            } catch (Throwable unusable) {
+                failure = Text.reason(unusable);
+                continue;
+            }
+            if (nonce.compareTo(next) > 0) {
+                throw new IOException("nonce " + nonce + " is too high: the next nonce of this address on " + chain + " is " + next);
+            }
+            return next;
+        }
+        throw new IOException("could not check the nonce (" + failure + ")");
+    }
+
     // Raises the suggested priority fee by 50% for faster inclusion of the transaction.
     public static BigInteger raise(BigInteger quote) {
         return quote.multiply(BigInteger.valueOf(3)).add(BigInteger.ONE).shiftRight(1);

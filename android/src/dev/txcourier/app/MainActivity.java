@@ -82,7 +82,6 @@ public final class MainActivity extends Activity {
         button("Show status", this::status); // show the current status
         button("EVM account", () -> account(Courier.ETHEREUM_IDENTIFIER)); // show the Ethereum account
         button("Bitcoin account", () -> account(Courier.BITCOIN_IDENTIFIER)); // show the Bitcoin account
-        button("Send", this::send); // initiate a new transaction
         button("Show the signed transaction", this::signed); // display the signed transaction
         button("Clear the pending transaction", () -> discard(Courier.PENDING, "pending")); // clear the pending transaction
         button("Clear the signed transaction", () -> discard(Courier.SIGNED, "signed")); // clear the signed transaction
@@ -123,6 +122,7 @@ public final class MainActivity extends Activity {
                     run(networkThread, () -> Node.balances(rpc, chain, address), this::lines); // read the balances then print lines with it
                 });
             }
+            button("Send", () -> send(address)); // initiate a new transaction
         } else {
             button("Bitcoin balance", () -> { // read the ledgers bitcoin balance
                 open();
@@ -158,13 +158,13 @@ public final class MainActivity extends Activity {
         });
     }
 
-    private void send() {
+    private void send(String address) {
         open(); // open the screen for sending a new transaction
         Spinner chains = spinner(Chain.KNOWN);
         Spinner asset = spinner(ASSETS);
         EditText to = field("Recipient (0x-prefixed)", TEXT);
         EditText amount = field("Amount (whole coin units)", DECIMAL);
-        EditText nonce = field("Nonce (txcount from explorer)", WHOLE);
+        EditText nonce = field("Nonce", WHOLE);
         EditText tip = field("Priority fee in gwei", DECIMAL);
         EditText maxFee = field("Max fee in gwei", DECIMAL);
         EditText gas = field("Gas limit (leave empty for default)", WHOLE);
@@ -190,8 +190,10 @@ public final class MainActivity extends Activity {
         // button to review the transaction before sending
         button("Review", () -> {
             Chain chain = (Chain) chains.getSelectedItem();
-            review(Tx.build(chain, (String) asset.getSelectedItem(), text(to), text(amount), text(nonce), text(tip),
-                    text(maxFee), text(gas)), chain);
+            String typed = text(nonce);
+            byte[] record = Tx.build(chain, (String) asset.getSelectedItem(), text(to), text(amount), typed, text(tip),
+                    text(maxFee), text(gas));
+            run(networkThread, () -> Node.checkNonce(rpc, chain, address, typed), next -> review(record, chain));
         });
     }
 

@@ -55,13 +55,6 @@ impl SigningAttempts {
     }
 
     pub fn attend(&mut self, bus: &mut Bus, vault: &mut Vault, now_us: u64) {
-        // If we are not waiting for signature we exit early
-        if !waiting_for_a_signature(vault) {
-            self.settled = 0;
-            self.awaiting_detach = false;
-            return;
-        }
-
         // Dont spam too hard
         if now_us < self.next_poll_at {
             return;
@@ -82,6 +75,12 @@ impl SigningAttempts {
             return;
         }
 
+        // If we are not waiting for signature we exit early
+        if !waiting_for_a_signature(vault) {
+            self.settled = 0;
+            return;
+        }
+
         // We wait for when the ledger has been plugged in for at least three polls
         // before we start talking to it
         self.settled = self.settled.saturating_add(1);
@@ -93,6 +92,7 @@ impl SigningAttempts {
         // Exeute the main loop
         match self.run(bus, vault) {
             Ok(()) => {
+                self.awaiting_detach = true;
                 self.backoff_us = BACKOFF_FIRST_US;
                 self.refusal = None;
                 self.detail = 0;
