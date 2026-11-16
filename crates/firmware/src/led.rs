@@ -1,14 +1,14 @@
-use core::ptr::{read_volatile, write_volatile};
-use core::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use core::ptr::write_volatile;
+use core::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, Ordering};
 
 use pio::{Assembler, JmpCondition, OutDestination, Program, SideSet};
 use rp235x_hal as hal;
 
 use hal::gpio::bank0::Gpio16;
 use hal::gpio::{DefaultTypeState, FunctionPio2, Pin};
-use hal::pac::{PIO2, RESETS, TIMER0};
+use hal::pac::{PIO2, RESETS};
 use hal::pio::{Buffers, InstallError, PIOBuilder, PIOExt, PinDir, ShiftDirection};
-use txcourier_protocol::{DeviceState, FAULT_BYTE, lamp_is_lit};
+use txcourier_protocol::{DeviceState, FAULT_BYTE, lamp_color};
 
 use crate::clocks::SYS_HZ;
 
@@ -20,7 +20,6 @@ const _: () = assert!(SYS_HZ.is_multiple_of(BIT_HZ * CYCLES_PER_BIT) && DIVISOR 
 const PROGRAM_SPACE: usize = 32;
 const COLOR_BITS: u8 = 24;
 const MACHINE: usize = 0;
-const LIT: u32 = 0x10_00_00 << (u32::BITS - COLOR_BITS as u32);
 const DARK: u32 = 0;
 
 pub type LedPin =
@@ -28,7 +27,7 @@ pub type LedPin =
 
 static STATE: AtomicU8 = AtomicU8::new(FAULT_BYTE);
 static READY: AtomicBool = AtomicBool::new(false);
-static SHOWN: AtomicBool = AtomicBool::new(false);
+static SHOWN: AtomicU32 = AtomicU32::new(DARK);
 
 /// initializes the LED pins
 pub fn adopt(block: PIO2, pin: LedPin, resets: &mut RESETS) -> Result<(), InstallError> {
@@ -63,17 +62,19 @@ pub fn tick() {
     if !READY.load(Ordering::Relaxed) {
         return;
     }
-    let timer = unsafe { &*TIMER0::ptr() };
-    let now_us = unsafe { read_volatile(timer.timerawl().as_ptr()) };
-
     // compute whether the lamp should be turned on
-    let lit = lamp_is_lit(now_us, STATE.load(Ordering::Relaxed));
-    if SHOWN.swap(lit, Ordering::Relaxed) == lit {
+    let color = lamp_color(STATE.load(Ordering::Relaxed));
+    if SHOWN.swap(color, Ordering::Relaxed) == color {
         return;
     }
 
     let pio = unsafe { &*PIO2::ptr() };
-    unsafe { write_volatile(pio.txf(MACHINE).as_ptr(), if lit { LIT } else { DARK }) };
+    unsafe { write_volatile(pio.txf(MACHINE).as_ptr(), grb(color)) };
+}
+
+const fn grb(rgb: u32) -> u32 {
+    let [_, red, green, blue] = rgb.to_be_bytes();
+    u32::from_be_bytes([green, red, blue, 0])
 }
 
 fn program() -> Program<PROGRAM_SPACE> {
