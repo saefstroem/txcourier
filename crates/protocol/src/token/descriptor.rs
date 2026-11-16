@@ -2,6 +2,10 @@ use crate::token::error::Error;
 use crate::token::result::Result;
 use crate::transaction::ADDRESS_LEN;
 
+// Defined by this crate: a round ceiling. Ledger's signed descriptors are about 104 bytes,
+// and the one-byte length in the table record caps any descriptor at 255.
+pub const DESCRIPTOR_MAX: usize = 128;
+
 // Ledger's token information payload opens with a one-byte ticker length.
 const TICKER_LEN_AT: usize = 0;
 // The contract address follows the ticker, which follows the length byte.
@@ -18,6 +22,47 @@ const DER_SEQUENCE: u8 = 0x30;
 // signature is 70 to 72 bytes.
 const DER_HEADER_LEN: usize = 2;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A token descriptor 
+pub struct Descriptor {
+    bytes: [u8; DESCRIPTOR_MAX],
+    len: u8,
+}
+
+impl Descriptor {
+    // An unused table slot. Zero length, so describes() never matches it.
+    pub const NONE: Self = Self {
+        bytes: [0; DESCRIPTOR_MAX],
+        len: 0,
+    };
+
+    /// Create a new token descriptor
+    pub fn new(bytes: &[u8]) -> Result<Self> {
+        if bytes.is_empty() {
+            return Err(Error::DescriptorMissing);
+        }
+
+        if bytes.len() > DESCRIPTOR_MAX {
+            return Err(Error::DescriptorTooLong(bytes.len()));
+        }
+
+        let mut descriptor = Self::NONE;
+        let Some(slot) = descriptor.bytes.get_mut(..bytes.len()) else {
+            return Err(Error::DescriptorTooLong(bytes.len()));
+        };
+
+        // Simply install the bytes and update length
+        slot.copy_from_slice(bytes);
+        descriptor.len = bytes.len() as u8;
+
+        Ok(descriptor)
+    }
+
+    pub fn as_slice(&self) -> &[u8] {
+        self.bytes.get(..usize::from(self.len)).unwrap_or(&[])
+    }
+}
+
 /// What a token descriptor says: its ticker, contract, decimals and chain
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Summary<'a> {
@@ -30,7 +75,7 @@ pub struct Summary<'a> {
 /// Read a token descriptor's fields, after checking it is shaped like one
 pub fn summarize(descriptor: &[u8]) -> Result<Summary<'_>> {
     let Some(&ticker_len) = descriptor.get(TICKER_LEN_AT) else {
-        return Err(Error::Malformed);
+        return Err(Error::DescriptorMalformed);
     };
 
     // Compute offsets for all
@@ -46,17 +91,17 @@ pub fn summarize(descriptor: &[u8]) -> Result<Summary<'_>> {
         descriptor.get(signature_at),
         descriptor.get(signature_at + 1),
     ) else {
-        return Err(Error::Malformed);
+        return Err(Error::DescriptorMalformed);
     };
 
     // Ensure proper start of an ECDSA signature
     if tag != DER_SEQUENCE {
-        return Err(Error::Malformed);
+        return Err(Error::DescriptorMalformed);
     }
 
     // Ensure the descriptor is the length its claiming based on contents
     if descriptor.len() != signature_at + DER_HEADER_LEN + usize::from(declared) {
-        return Err(Error::Malformed);
+        return Err(Error::DescriptorMalformed);
     }
 
     let (Some(ticker), Some(contract), Some(decimals), Some(chain)) = (
@@ -65,7 +110,7 @@ pub fn summarize(descriptor: &[u8]) -> Result<Summary<'_>> {
         descriptor.get(decimals_at..chain_at),
         descriptor.get(chain_at..signature_at),
     ) else {
-        return Err(Error::Malformed);
+        return Err(Error::DescriptorMalformed);
     };
 
     let (Ok(contract), Ok(decimals), Ok(chain)) = (
@@ -73,7 +118,7 @@ pub fn summarize(descriptor: &[u8]) -> Result<Summary<'_>> {
         <[u8; DECIMALS_LEN]>::try_from(decimals),
         <[u8; CHAIN_ID_LEN]>::try_from(chain),
     ) else {
-        return Err(Error::Malformed);
+        return Err(Error::DescriptorMalformed);
     };
 
     Ok(Summary {
@@ -90,12 +135,12 @@ pub fn describes(descriptor: &[u8], address: &[u8; ADDRESS_LEN], chain_id: u64) 
 
     // Ensure the address matches
     if summary.contract != *address {
-        return Err(Error::AddressMismatch);
+        return Err(Error::DescriptorAddressMismatch);
     }
 
     // Ensure the chain matches
     if summary.chain_id != chain_id {
-        return Err(Error::ChainMismatch);
+        return Err(Error::DescriptorChainMismatch);
     }
 
     Ok(())
@@ -103,6 +148,8 @@ pub fn describes(descriptor: &[u8], address: &[u8; ADDRESS_LEN], chain_id: u64) 
 
 #[cfg(test)]
 mod tests {
+    use super::DESCRIPTOR_MAX;
+    use super::Descriptor;
     use super::Error;
     use super::Summary;
     use super::describes;
@@ -126,11 +173,33 @@ mod tests {
     }
 
     #[test]
+    fn a_descriptor_round_trips() {
+        let bytes = usdt_descriptor();
+        let descriptor = Descriptor::new(&bytes).expect("fits");
+        assert_eq!(descriptor.as_slice(), bytes.as_slice());
+    }
+
+    #[test]
+    fn an_empty_descriptor_is_refused() {
+        assert_eq!(Descriptor::new(&[]), Err(Error::DescriptorMissing));
+        assert!(Descriptor::NONE.as_slice().is_empty());
+    }
+
+    #[test]
+    fn one_byte_over_the_maximum_is_refused() {
+        assert_eq!(
+            Descriptor::new(&[0u8; DESCRIPTOR_MAX + 1]),
+            Err(Error::DescriptorTooLong(DESCRIPTOR_MAX + 1))
+        );
+        assert!(Descriptor::new(&[0u8; DESCRIPTOR_MAX]).is_ok());
+    }
+
+    #[test]
     fn a_descriptor_must_name_the_contract_it_is_stored_against() {
         assert_eq!(describes(&usdt_descriptor(), &USDT, 1), Ok(()));
         assert_eq!(
             describes(&usdt_descriptor(), &[0x11; 20], 1),
-            Err(Error::AddressMismatch)
+            Err(Error::DescriptorAddressMismatch)
         );
     }
 
@@ -138,7 +207,7 @@ mod tests {
     fn a_descriptor_for_another_chain_is_refused() {
         assert_eq!(
             describes(&usdt_descriptor(), &USDT, 8453),
-            Err(Error::ChainMismatch)
+            Err(Error::DescriptorChainMismatch)
         );
     }
 
@@ -148,7 +217,7 @@ mod tests {
         for len in 0..bytes.len() {
             assert_eq!(
                 describes(&bytes[..len], &USDT, 1),
-                Err(Error::Malformed),
+                Err(Error::DescriptorMalformed),
                 "length {len}"
             );
         }
@@ -159,21 +228,21 @@ mod tests {
     fn trailing_bytes_after_the_signature_are_refused() {
         let mut bytes = usdt_descriptor();
         bytes.push(0x00);
-        assert_eq!(describes(&bytes, &USDT, 1), Err(Error::Malformed));
+        assert_eq!(describes(&bytes, &USDT, 1), Err(Error::DescriptorMalformed));
     }
 
     #[test]
     fn a_signature_that_is_not_a_der_sequence_is_refused() {
         let mut bytes = usdt_descriptor();
         bytes[33] = 0x31;
-        assert_eq!(describes(&bytes, &USDT, 1), Err(Error::Malformed));
+        assert_eq!(describes(&bytes, &USDT, 1), Err(Error::DescriptorMalformed));
     }
 
     #[test]
     fn a_ticker_length_that_runs_off_the_end_is_refused() {
         let mut bytes = usdt_descriptor();
         bytes[0] = 0xFF;
-        assert_eq!(describes(&bytes, &USDT, 1), Err(Error::Malformed));
+        assert_eq!(describes(&bytes, &USDT, 1), Err(Error::DescriptorMalformed));
     }
 
     #[test]
@@ -194,11 +263,14 @@ mod tests {
     fn a_misshapen_descriptor_does_not_summarize() {
         let mut too_long = usdt_descriptor();
         too_long.push(0x00);
-        assert_eq!(summarize(&too_long), Err(Error::Malformed));
+        assert_eq!(summarize(&too_long), Err(Error::DescriptorMalformed));
 
         let short = usdt_descriptor();
-        assert_eq!(summarize(&short[..short.len() - 1]), Err(Error::Malformed));
-        assert_eq!(summarize(&[]), Err(Error::Malformed));
+        assert_eq!(
+            summarize(&short[..short.len() - 1]),
+            Err(Error::DescriptorMalformed)
+        );
+        assert_eq!(summarize(&[]), Err(Error::DescriptorMalformed));
     }
 
     #[test]
