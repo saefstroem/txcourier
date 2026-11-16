@@ -1,18 +1,18 @@
-# Host-side workspace: the CLI and the shared protocol crate.
+# Host-side workspace: the shared protocol crate and the PIO USB crate.
 #
 # `crates/firmware` is deliberately NOT a member. It is its own workspace with
 # its own `.cargo/config.toml`, because it builds for riscv32imac-unknown-none-elf
 # with a custom linker script. Keeping the two apart means plain `cargo test`
 # works here and plain `cargo build --release` works in there, with no
 # `--target` juggling and no chance of accidentally building the firmware for
-# the host (or the CLI for the RP2350).
+# the host.
 #
 #   host:     cargo test                       (from this directory)
 #   firmware: cd crates/firmware && cargo build --release
 
 [workspace]
 resolver = "3"
-members = ["crates/protocol", "crates/pio-usb", "crates/cli"]
+members = ["crates/protocol", "crates/pio-usb"]
 exclude = ["crates/firmware"]
 
 [workspace.package]

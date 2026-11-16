@@ -30,8 +30,8 @@ use hal::pac::Peripherals;
 use hal::usb::UsbBus;
 use hal::{Sio, Timer, Watchdog};
 use txcourier_protocol::FAULT_BYTE;
+use txcourier_protocol::draft::Draft;
 use txcourier_protocol::policy::approve;
-use txcourier_protocol::token::decode as decode_tokens;
 use txcourier_protocol::wire::{
     MAX_FRAME_LEN, Refusal, Request, Response, Slot, TRANSACTION_CAPACITY, Transaction,
 };
@@ -149,28 +149,20 @@ fn announce(vault: &Vault) {
 }
 
 /// Attempt to add a transaction to the vault
-fn admit(vault: &mut Vault, transaction: &[u8]) -> Response {
+fn admit(vault: &mut Vault, record: &[u8]) -> Response {
+    let mut built = [0u8; TRANSACTION_CAPACITY];
+    // Decode and then RLP encode the transaction
+    let len = match Draft::decode(record).and_then(|draft| draft.encode(&mut built)) {
+        Ok(len) => len,
+        Err(error) => return refused(Refusal::from(error)),
+    };
+    let transaction = built.get(..len).unwrap_or(&[]);
+
     if let Err(error) = approve(transaction) {
         return refused(Refusal::from(error));
     }
 
     match vault.store_pending(transaction) {
-        Ok(()) => Response::Acknowledged,
-        Err(error) => refused(Refusal::from(error)),
-    }
-}
-
-/// Attempt to store tokens in the system
-fn provision(vault: &mut Vault, blob: &[u8]) -> Response {
-    if let Err(error) = vault.occupancy().may_store_pending() {
-        return refused(Refusal::from(error));
-    }
-
-    if let Err(error) = decode_tokens(blob) {
-        return refused(Refusal::from(error));
-    }
-
-    match vault.store_tokens(blob) {
         Ok(()) => Response::Acknowledged,
         Err(error) => refused(Refusal::from(error)),
     }
@@ -212,12 +204,11 @@ fn serve(
                 Ok(state) => state.to_byte(),
                 Err(_) => FAULT_BYTE,
             },
-            provisioned: vault.provisioned(),
             refusal: signing.refusal(),
             detail: signing.detail(),
         },
         // Attempt to set a transaction
-        Request::Put(transaction) => admit(vault, transaction.as_slice()),
+        Request::Put(record) => admit(vault, record.as_slice()),
 
         // Attempt to read a well defined flash slot
         Request::Get(slot) => {
@@ -239,8 +230,6 @@ fn serve(
                 Err(error) => refused(Refusal::from(error)),
             }
         }
-        // Attempt to provision tokens for the system
-        Request::Provision(tokens) => provision(vault, tokens.as_slice()),
     };
 
     let written = response.encode(frame)?;

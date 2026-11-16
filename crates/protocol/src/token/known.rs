@@ -1,0 +1,327 @@
+use crate::transaction::ADDRESS_LEN;
+
+pub const TICKER_LEN: usize = 8;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    Coin,
+    Token {
+        contract: [u8; ADDRESS_LEN],
+        descriptor: &'static [u8],
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Asset {
+    pub chain_id: u64,
+    pub ticker: &'static str,
+    pub decimals: u8,
+    pub kind: Kind,
+}
+
+pub static KNOWN: [Asset; 8] = [
+    Asset {
+        chain_id: 1,
+        ticker: "ETH",
+        decimals: 18,
+        kind: Kind::Coin,
+    },
+    Asset {
+        chain_id: 56,
+        ticker: "BNB",
+        decimals: 18,
+        kind: Kind::Coin,
+    },
+    Asset {
+        chain_id: 1,
+        ticker: "USDT",
+        decimals: 6,
+        kind: Kind::Token {
+            contract: address("0xdAC17F958D2ee523a2206206994597C13D831ec7"),
+            descriptor: &ETHEREUM_USDT_DESCRIPTOR,
+        },
+    },
+    Asset {
+        chain_id: 1,
+        ticker: "USDC",
+        decimals: 6,
+        kind: Kind::Token {
+            contract: address("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+            descriptor: &ETHEREUM_USDC_DESCRIPTOR,
+        },
+    },
+    Asset {
+        chain_id: 1,
+        ticker: "PAXG",
+        decimals: 18,
+        kind: Kind::Token {
+            contract: address("0x45804880De22913dAFE09f4980848ECE6EcbAf78"),
+            descriptor: &ETHEREUM_PAXG_DESCRIPTOR,
+        },
+    },
+    Asset {
+        chain_id: 56,
+        ticker: "USDT",
+        decimals: 18,
+        kind: Kind::Token {
+            contract: address("0x55d398326f99059fF775485246999027B3197955"),
+            descriptor: &BSC_USDT_DESCRIPTOR,
+        },
+    },
+    Asset {
+        chain_id: 56,
+        ticker: "USDC",
+        decimals: 18,
+        kind: Kind::Token {
+            contract: address("0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d"),
+            descriptor: &BSC_USDC_DESCRIPTOR,
+        },
+    },
+    Asset {
+        chain_id: 56,
+        ticker: "PAXG",
+        decimals: 18,
+        kind: Kind::Token {
+            contract: address("0x7950865a9140cB519342433146Ed5b40c6F210f7"),
+            descriptor: &BSC_PAXG_DESCRIPTOR,
+        },
+    },
+];
+
+const ETHEREUM_USDT_DESCRIPTOR: [u8; 103] = [
+    0x04, 0x55, 0x53, 0x44, 0x54, 0xda, 0xc1, 0x7f, 0x95, 0x8d, 0x2e, 0xe5, 0x23, 0xa2, 0x20, 0x62,
+    0x06, 0x99, 0x45, 0x97, 0xc1, 0x3d, 0x83, 0x1e, 0xc7, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00,
+    0x01, 0x30, 0x44, 0x02, 0x20, 0x78, 0xc6, 0x6c, 0xce, 0xa3, 0xe4, 0xde, 0xdb, 0x15, 0xa2, 0x4e,
+    0xc3, 0xc7, 0x83, 0xd7, 0xb5, 0x82, 0xcd, 0x26, 0x0d, 0xaf, 0x62, 0xfd, 0x36, 0xaf, 0xe9, 0xa8,
+    0x21, 0x2a, 0x34, 0x4a, 0xed, 0x02, 0x20, 0x16, 0x0b, 0xa8, 0xc1, 0xc4, 0xb6, 0xa8, 0xaa, 0x65,
+    0x65, 0xbe, 0xd2, 0x06, 0x32, 0xa0, 0x91, 0xae, 0xee, 0xb7, 0xbf, 0xda, 0xc6, 0x7f, 0xc6, 0x58,
+    0x9a, 0x60, 0x31, 0xac, 0xbf, 0x51, 0x1c,
+];
+const ETHEREUM_USDC_DESCRIPTOR: [u8; 104] = [
+    0x04, 0x55, 0x53, 0x44, 0x43, 0xa0, 0xb8, 0x69, 0x91, 0xc6, 0x21, 0x8b, 0x36, 0xc1, 0xd1, 0x9d,
+    0x4a, 0x2e, 0x9e, 0xb0, 0xce, 0x36, 0x06, 0xeb, 0x48, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00,
+    0x01, 0x30, 0x45, 0x02, 0x21, 0x00, 0xb2, 0xe3, 0x58, 0x72, 0x6e, 0x4e, 0x6a, 0x67, 0x52, 0xcf,
+    0x34, 0x40, 0x17, 0xc0, 0xe9, 0xd4, 0x5b, 0x9a, 0x90, 0x41, 0x20, 0x75, 0x8d, 0x45, 0xf6, 0x1b,
+    0x28, 0x04, 0xf9, 0xad, 0x52, 0x99, 0x02, 0x20, 0x15, 0x16, 0x1e, 0xf2, 0x8d, 0x8c, 0x44, 0x81,
+    0xbd, 0x94, 0x32, 0xc1, 0x35, 0x62, 0xde, 0xf9, 0xcc, 0xe6, 0x88, 0xbc, 0xfe, 0xc8, 0x96, 0xef,
+    0x24, 0x4c, 0x9a, 0x21, 0x3f, 0x10, 0x6c, 0xdd,
+];
+const ETHEREUM_PAXG_DESCRIPTOR: [u8; 103] = [
+    0x04, 0x50, 0x41, 0x58, 0x47, 0x45, 0x80, 0x48, 0x80, 0xde, 0x22, 0x91, 0x3d, 0xaf, 0xe0, 0x9f,
+    0x49, 0x80, 0x84, 0x8e, 0xce, 0x6e, 0xcb, 0xaf, 0x78, 0x00, 0x00, 0x00, 0x12, 0x00, 0x00, 0x00,
+    0x01, 0x30, 0x44, 0x02, 0x20, 0x00, 0xf0, 0xe5, 0x76, 0x75, 0xb6, 0x36, 0x73, 0x84, 0xfc, 0x82,
+    0xe8, 0xcd, 0x23, 0x07, 0xb3, 0x45, 0xd8, 0x31, 0xd3, 0x1d, 0x79, 0x59, 0xfd, 0x9b, 0x83, 0x75,
+    0xd5, 0xce, 0x33, 0xfd, 0x66, 0x02, 0x20, 0x7c, 0x1a, 0x79, 0x9e, 0x86, 0xd4, 0xdf, 0x30, 0x37,
+    0x84, 0xa8, 0x82, 0xee, 0xaf, 0x23, 0x1f, 0xd0, 0xa8, 0xa0, 0xa0, 0x04, 0xea, 0x2b, 0x3c, 0x49,
+    0x34, 0x8a, 0x5b, 0x07, 0xfd, 0x7c, 0xc0,
+];
+const BSC_USDT_DESCRIPTOR: [u8; 103] = [
+    0x04, 0x55, 0x53, 0x44, 0x54, 0x55, 0xd3, 0x98, 0x32, 0x6f, 0x99, 0x05, 0x9f, 0xf7, 0x75, 0x48,
+    0x52, 0x46, 0x99, 0x90, 0x27, 0xb3, 0x19, 0x79, 0x55, 0x00, 0x00, 0x00, 0x12, 0x00, 0x00, 0x00,
+    0x38, 0x30, 0x44, 0x02, 0x20, 0x06, 0x3f, 0x63, 0x7f, 0x88, 0xfe, 0x23, 0x54, 0xa4, 0xe8, 0x90,
+    0x33, 0x01, 0x74, 0x5c, 0x60, 0xe7, 0xef, 0x3e, 0x4b, 0xd4, 0x9d, 0xad, 0x30, 0x28, 0x33, 0xb8,
+    0xa2, 0xbf, 0x38, 0xca, 0x52, 0x02, 0x20, 0x53, 0xf0, 0x01, 0xf7, 0x52, 0xec, 0xf3, 0x79, 0xb9,
+    0x0e, 0x23, 0x07, 0x50, 0xbf, 0xac, 0xd4, 0x49, 0x65, 0x76, 0x77, 0x76, 0x43, 0x89, 0xdf, 0xd7,
+    0x32, 0xcc, 0x09, 0xb4, 0x2f, 0xf9, 0xe7,
+];
+const BSC_USDC_DESCRIPTOR: [u8; 103] = [
+    0x04, 0x55, 0x53, 0x44, 0x43, 0x8a, 0xc7, 0x6a, 0x51, 0xcc, 0x95, 0x0d, 0x98, 0x22, 0xd6, 0x8b,
+    0x83, 0xfe, 0x1a, 0xd9, 0x7b, 0x32, 0xcd, 0x58, 0x0d, 0x00, 0x00, 0x00, 0x12, 0x00, 0x00, 0x00,
+    0x38, 0x30, 0x44, 0x02, 0x20, 0x7f, 0x36, 0x46, 0xc1, 0x52, 0x85, 0x8f, 0x14, 0x9b, 0x2f, 0x42,
+    0xdd, 0xd0, 0x49, 0x40, 0x29, 0x94, 0x3f, 0x97, 0x81, 0x41, 0xd6, 0xb8, 0x73, 0x8d, 0x2c, 0x37,
+    0x4c, 0xb6, 0xa2, 0x26, 0x26, 0x02, 0x20, 0x38, 0x1e, 0x2b, 0x61, 0xa5, 0x6f, 0xc4, 0x93, 0x5a,
+    0xc3, 0x1c, 0x9b, 0xd9, 0x06, 0x9c, 0x10, 0x2d, 0xeb, 0x3f, 0x4f, 0x64, 0x25, 0x93, 0xc2, 0xd4,
+    0xb4, 0x09, 0x31, 0xd2, 0x8f, 0x7f, 0xc2,
+];
+const BSC_PAXG_DESCRIPTOR: [u8; 104] = [
+    0x04, 0x50, 0x41, 0x58, 0x47, 0x79, 0x50, 0x86, 0x5a, 0x91, 0x40, 0xcb, 0x51, 0x93, 0x42, 0x43,
+    0x31, 0x46, 0xed, 0x5b, 0x40, 0xc6, 0xf2, 0x10, 0xf7, 0x00, 0x00, 0x00, 0x12, 0x00, 0x00, 0x00,
+    0x38, 0x30, 0x45, 0x02, 0x21, 0x00, 0xd5, 0x74, 0x78, 0x74, 0x60, 0xd5, 0x98, 0xe2, 0x85, 0x0d,
+    0x13, 0xff, 0x87, 0x8c, 0x04, 0x47, 0x60, 0xde, 0x59, 0x66, 0x38, 0xdc, 0xf8, 0xe7, 0x4d, 0x45,
+    0xd4, 0xef, 0x8e, 0x7e, 0xe4, 0x60, 0x02, 0x20, 0x32, 0xbf, 0x9f, 0xa0, 0xc7, 0x9d, 0xaa, 0xf1,
+    0xb7, 0x01, 0x4f, 0x35, 0x1d, 0x7e, 0xe5, 0xd7, 0xb7, 0x0a, 0xcc, 0x82, 0x63, 0x1c, 0x90, 0xa2,
+    0x30, 0x6b, 0x3b, 0xd0, 0x7c, 0x80, 0x6e, 0xf4,
+];
+
+pub fn find(chain_id: u64, ticker: &[u8; TICKER_LEN]) -> Option<&'static Asset> {
+    KNOWN.iter().find(|asset| {
+        asset.chain_id == chain_id
+            && ticker
+                .strip_prefix(asset.ticker.as_bytes())
+                .is_some_and(|padding| padding.iter().all(|&byte| byte == 0))
+    })
+}
+
+pub fn descriptor_for(chain_id: u64, contract: &[u8; ADDRESS_LEN]) -> Option<&'static [u8]> {
+    KNOWN.iter().find_map(|asset| match asset.kind {
+        Kind::Token {
+            contract: listed,
+            descriptor,
+            ..
+        } if asset.chain_id == chain_id && listed == *contract => Some(descriptor),
+        _ => None,
+    })
+}
+
+const fn address(text: &str) -> [u8; ADDRESS_LEN] {
+    let digits = match text.as_bytes() {
+        [b'0', b'x', digits @ ..] => digits,
+        _ => &[],
+    };
+    assert!(
+        digits.len() == 2 * ADDRESS_LEN,
+        "an address is 0x and 40 hex digits"
+    );
+
+    let mut address = [0u8; ADDRESS_LEN];
+    let mut rest = digits;
+    let mut bytes: &mut [u8] = &mut address;
+    while let ([high, low, tail @ ..], [byte, others @ ..]) = (rest, bytes) {
+        let (high, low) = (nibble(*high), nibble(*low));
+        assert!(high < 16 && low < 16, "an address is written in hex digits");
+        *byte = high << 4 | low;
+        rest = tail;
+        bytes = others;
+    }
+    address
+}
+
+const fn nibble(digit: u8) -> u8 {
+    match digit {
+        b'0'..=b'9' => digit - b'0',
+        b'a'..=b'f' => digit - b'a' + 10,
+        b'A'..=b'F' => digit - b'A' + 10,
+        _ => u8::MAX,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{KNOWN, Kind, TICKER_LEN, address, descriptor_for, find};
+    use crate::token::{describes, summarize};
+
+    fn padded(name: &[u8]) -> [u8; TICKER_LEN] {
+        let mut ticker = [0u8; TICKER_LEN];
+        ticker[..name.len()].copy_from_slice(name);
+        ticker
+    }
+
+    #[test]
+    fn every_built_in_descriptor_names_its_contract_chain_ticker_and_decimals() {
+        for asset in &KNOWN {
+            if let Kind::Token {
+                contract,
+                descriptor,
+            } = asset.kind
+            {
+                assert_eq!(
+                    describes(descriptor, &contract, asset.chain_id),
+                    Ok(()),
+                    "{}",
+                    asset.ticker
+                );
+                let summary = summarize(descriptor).expect("summarizes");
+                assert_eq!(summary.ticker, asset.ticker.as_bytes(), "{}", asset.ticker);
+                assert_eq!(
+                    summary.decimals,
+                    u32::from(asset.decimals),
+                    "{}",
+                    asset.ticker
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn every_ticker_fits_the_record_and_names_one_asset_per_chain() {
+        for (index, asset) in KNOWN.iter().enumerate() {
+            assert!(
+                !asset.ticker.is_empty() && asset.ticker.len() <= TICKER_LEN,
+                "{}",
+                asset.ticker
+            );
+            assert!(
+                asset.ticker.bytes().all(|byte| byte.is_ascii_uppercase()),
+                "{}",
+                asset.ticker
+            );
+            for other in KNOWN.iter().skip(index + 1) {
+                assert!(
+                    asset.chain_id != other.chain_id || asset.ticker != other.ticker,
+                    "{} twice on chain {}",
+                    asset.ticker,
+                    asset.chain_id
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn each_chain_has_its_own_coin() {
+        for (chain_id, ticker) in [(1, b"ETH"), (56, b"BNB")] {
+            let coin = find(chain_id, &padded(ticker)).expect("built in");
+            assert_eq!((coin.decimals, coin.kind), (18, Kind::Coin));
+        }
+        assert_eq!(find(1, &padded(b"BNB")), None);
+        assert_eq!(find(56, &padded(b"ETH")), None);
+    }
+
+    #[test]
+    fn a_token_is_found_by_its_ticker_on_its_chain() {
+        for (chain_id, decimals) in [(1, 6), (56, 18)] {
+            assert_eq!(
+                find(chain_id, &padded(b"USDT")).map(|asset| asset.decimals),
+                Some(decimals)
+            );
+        }
+        assert_eq!(find(1, &padded(b"DAI")), None);
+        assert_eq!(find(1, &padded(b"usdt")), None);
+        assert_eq!(find(8453, &padded(b"USDC")), None);
+    }
+
+    #[test]
+    fn a_ticker_matches_only_when_the_rest_of_its_field_is_zero() {
+        assert!(find(1, &padded(b"USDT")).is_some());
+        assert_eq!(find(1, b"USDT\0\0\0\x01"), None);
+        assert_eq!(find(1, &padded(b"USDTX")), None);
+        assert_eq!(find(1, &padded(b"USD")), None);
+        assert_eq!(find(1, &[0; TICKER_LEN]), None);
+        assert_eq!(find(1, b"USDTUSDT"), None);
+    }
+
+    #[test]
+    fn an_address_is_0x_and_40_hex_digits_in_either_case() {
+        let lower = address("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48");
+        assert_eq!(address("0xA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48"), lower);
+        assert_eq!(lower[..2], [0xa0, 0xb8]);
+        assert_eq!(lower[18..], [0xeb, 0x48]);
+        for text in [
+            "a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+            "0Xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+            "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb4",
+            "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb480",
+            "0xg0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+            "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb4 ",
+        ] {
+            assert!(
+                std::panic::catch_unwind(|| address(text)).is_err(),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_descriptor_is_found_only_for_a_built_in_contract_on_its_chain() {
+        for asset in &KNOWN {
+            if let Kind::Token {
+                contract,
+                descriptor,
+            } = asset.kind
+            {
+                assert_eq!(descriptor_for(asset.chain_id, &contract), Some(descriptor));
+                assert_eq!(descriptor_for(asset.chain_id + 1, &contract), None);
+            }
+        }
+        assert_eq!(descriptor_for(1, &[0x11; 20]), None);
+    }
+}

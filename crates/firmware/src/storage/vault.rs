@@ -1,28 +1,16 @@
 use txcourier_protocol::slots::Occupancy;
-use txcourier_protocol::store::{
-    TOKEN_TABLE_RECORD_LEN, Kind, Record, SLOT_RECORD_LEN, Slot, decode, encode, scan,
-};
-use txcourier_protocol::token::Tokens;
-use txcourier_protocol::token::decode as decode_tokens;
+use txcourier_protocol::store::{Kind, Record, SLOT_RECORD_LEN, Slot, decode, encode, scan};
 
 use crate::storage::error::Error;
 use crate::storage::flash::{Flash, Region};
 use crate::storage::result::Result;
-
-// One stack buffer serves every region, so it is sized for the larger record, the token
-// table record.
-const MAX_RECORD_LEN: usize = TOKEN_TABLE_RECORD_LEN;
-
-const _: () = assert!(SLOT_RECORD_LEN <= MAX_RECORD_LEN);
 
 /// The host device memory 
 pub struct Vault {
     flash: Flash,
     pending: Region,
     signed: Region,
-    token_table: Region,
     occupancy: Occupancy,
-    tokens: Option<Tokens>,
 }
 
 impl Vault {
@@ -32,9 +20,7 @@ impl Vault {
             flash: Flash::new(),
             pending: Region::pending(SLOT_RECORD_LEN),
             signed: Region::signed(SLOT_RECORD_LEN),
-            token_table: Region::token_table(TOKEN_TABLE_RECORD_LEN),
             occupancy: Occupancy::EMPTY,
-            tokens: None,
         };
 
         // refresh memory by reading from flash
@@ -47,11 +33,6 @@ impl Vault {
         self.occupancy
     }
 
-    /// whether there are any tokens programmed in device
-    pub fn provisioned(&self) -> bool {
-        self.tokens.is_some()
-    }
-
     /// read the pending region
     pub fn read_pending(&self, out: &mut [u8]) -> usize {
         read(&self.pending, out)
@@ -60,11 +41,6 @@ impl Vault {
     /// read the signed region
     pub fn read_signed(&self, out: &mut [u8]) -> usize {
         read(&self.signed, out)
-    }
-
-    /// access the programmed allowed tokens
-    pub fn tokens(&self) -> Option<&Tokens> {
-        self.tokens.as_ref()
     }
 
     /// store a pending unsigned transaction
@@ -90,11 +66,6 @@ impl Vault {
     pub fn clear_signed(&mut self) -> Result<()> {
         self.occupancy.may_clear_signed()?;
         self.tombstone(self.signed)
-    }
-
-    /// stores allowed tokens in the system
-    pub fn store_tokens(&mut self, payload: &[u8]) -> Result<()> {
-        self.append(self.token_table, payload)
     }
 
     /// append some payload to a region, this will overwrite if it is full
@@ -151,7 +122,7 @@ impl Vault {
     }
 
     fn write(&mut self, region: Region, index: usize, record: &Record<'_>) -> Result<()> {
-        let mut bytes = [0u8; MAX_RECORD_LEN];
+        let mut bytes = [0u8; SLOT_RECORD_LEN];
         let Some(slot) = bytes.get_mut(..region.record_len) else {
             return Err(Error::RegionUnsupported(region.record_len));
         };
@@ -172,15 +143,7 @@ impl Vault {
             pending: occupied(&self.pending),
             signed: occupied(&self.signed),
         };
-        self.tokens = stored_tokens(&self.token_table);
     }
-}
-
-/// returns the stored tokens from the region
-fn stored_tokens(region: &Region) -> Option<Tokens> {
-    let mut blob = [0u8; MAX_RECORD_LEN];
-    let len = read(region, &mut blob);
-    decode_tokens(blob.get(..len).unwrap_or(&[])).ok()
 }
 
 /// checks if a region has data inside

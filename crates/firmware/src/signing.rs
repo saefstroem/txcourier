@@ -1,4 +1,5 @@
 use txcourier_protocol::ledger::STATUS_DENIED;
+use txcourier_protocol::token::descriptor_for;
 use txcourier_protocol::transaction::Unsigned;
 use txcourier_protocol::transfer::{Transfer, classify};
 use txcourier_protocol::wire::{Refusal, TRANSACTION_CAPACITY};
@@ -105,7 +106,8 @@ impl SigningAttempts {
         let unsigned_len = vault.read_pending(&mut unsigned);
         // read the unsigned transaction
         let raw = unsigned.get(..unsigned_len).unwrap_or(&[]);
-        let token = token_for(raw, vault)?;
+        // compute token
+        let token = token_for(raw)?;
 
         let mut signed = [0u8; TRANSACTION_CAPACITY];
 
@@ -134,11 +136,11 @@ impl SigningAttempts {
     }
 }
 
-fn token_for<'a>(raw: &[u8], vault: &'a Vault) -> Result<&'a [u8]> {
+fn token_for(raw: &[u8]) -> Result<&'static [u8]> {
     let Ok(unsigned) = Unsigned::decode(raw) else {
         return Err(Error::Host(HostError::NoTokenDescriptor));
     };
-
+    // classify the transaction to determine if it is a native transfer or a token transfer
     let (chain_id, contract) = match classify(&unsigned) {
         Ok(Transfer::Native { .. }) => return Ok(&[]),
         Ok(Transfer::Token {
@@ -147,10 +149,8 @@ fn token_for<'a>(raw: &[u8], vault: &'a Vault) -> Result<&'a [u8]> {
         Err(_) => return Err(Error::Host(HostError::NoTokenDescriptor)),
     };
 
-    vault
-        .tokens()
-        .and_then(|tokens| tokens.descriptor(chain_id, contract))
-        .ok_or(Error::Host(HostError::NoTokenDescriptor))
+    // extract signed ledger descriptor for this combination
+    descriptor_for(chain_id, contract).ok_or(Error::Host(HostError::NoTokenDescriptor))
 }
 
 fn waiting_for_a_signature(vault: &Vault) -> bool {
