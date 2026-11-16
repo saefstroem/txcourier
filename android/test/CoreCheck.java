@@ -44,6 +44,7 @@ public final class CoreCheck {
         transactions();
         amounts();
         fees();
+        nonces();
         publishing();
         courier();
         addresses();
@@ -133,6 +134,19 @@ public final class CoreCheck {
         Check.that(Node.suggest(new FakeRpc().node(FIRST, new StackOverflowError()).node(SECOND, (Object) quoted), chain(FIRST, SECOND)) == quoted, "a node that overflows the stack is skipped too");
         Check.that(Check.failure(() -> Node.suggest(new FakeRpc(), chain(FIRST))).equals("could not fetch fees (connection refused by " + FIRST + "), enter them by hand"), "the last failure is reported");
         Check.that(Check.failure(() -> Node.suggest(new FakeRpc(), chain())).equals("could not fetch fees (no node is known for BNB Smart Chain (56)), enter them by hand"), "a chain without nodes says so");
+    }
+
+    private static void nonces() throws Exception {
+        FakeRpc rpc = new FakeRpc().node(FIRST, new IOException("down")).node(SECOND, BigInteger.valueOf(4), BigInteger.valueOf(4));
+        Check.that(Node.checkNonce(rpc, chain(FIRST, SECOND), RECIPIENT, "4").equals(BigInteger.valueOf(4)), "the next nonce passes");
+        Check.that(rpc.calls.equals(List.of("nonce " + FIRST, "nonce " + SECOND)), "a dead node is skipped: " + rpc.calls);
+        Check.that(Node.checkNonce(rpc, chain(SECOND), RECIPIENT, "3").equals(BigInteger.valueOf(4)), "a used nonce is left for the nodes to refuse");
+        FakeRpc fresh = new FakeRpc().node(FIRST, BigInteger.ZERO).node(SECOND, BigInteger.TEN);
+        Check.that(Check.failure(() -> Node.checkNonce(fresh, chain(FIRST, SECOND), RECIPIENT, "1"))
+                .equals("nonce 1 is too high: the next nonce of this address on BNB Smart Chain (56) is 0"), "a nonce nodes would hold back is refused");
+        Check.that(fresh.calls.equals(List.of("nonce " + FIRST)), "no other node is asked to overrule the refusal: " + fresh.calls);
+        Check.that(Check.failure(() -> Node.checkNonce(new FakeRpc(), chain(FIRST), RECIPIENT, "0")).equals("could not check the nonce (connection refused by " + FIRST + ")"), "no answer means no review");
+        Check.that(Check.failure(() -> Node.checkNonce(new FakeRpc(), chain(FIRST), RECIPIENT, "")).equals("nonce: '' is not a number"), "an empty nonce is refused before a node is asked");
     }
 
     private static void expectRaise(BigInteger quote) {

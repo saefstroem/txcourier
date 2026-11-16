@@ -11,4 +11,6 @@ public interface Rpc {
     BigInteger balance(String url, String address) throws IOException;
 
     BigInteger tokenBalance(String url, String contract, String address) throws IOException;
+
+    BigInteger nonce(String url, String address) throws IOException;
 }

@@ -72,6 +72,11 @@ public final class HttpRpc implements Rpc {
         }
     }
 
+    @Override
+    public BigInteger nonce(String url, String address) throws IOException {
+        return quantity(call(url, "eth_getTransactionCount", new JSONArray().put(Text.hex(Text.address(address))).put("latest")));
+    }
+
     // performs an HTTP GET request to the specified URL and returns the response as an Object
     static Object get(String url) throws IOException {
         return fetch(url, null, true);

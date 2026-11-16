@@ -38,6 +38,11 @@ public final class FakeRpc implements Rpc {
         return (BigInteger) next(url, "token " + contract);
     }
 
+    @Override
+    public BigInteger nonce(String url, String address) throws IOException {
+        return (BigInteger) next(url, "nonce");
+    }
+
     private Object next(String url, String method) throws IOException {
         calls.add(method + " " + url);
         Deque<Object> answers = replies.get(url);
