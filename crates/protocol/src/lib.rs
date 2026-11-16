@@ -32,6 +32,6 @@ pub mod usb;
 pub mod wire;
 
 pub use bus::BUS_SAMPLES;
-pub use lamp::lamp_is_lit;
+pub use lamp::lamp_color;
 pub use state::DeviceState;
 pub use state::FAULT_BYTE;

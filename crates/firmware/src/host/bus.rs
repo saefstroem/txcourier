@@ -221,7 +221,6 @@ pub struct Bus {
     start_word: u32,
     frame: u16,
     next_frame_at: u64,
-    heartbeat: fn(),
 }
 
 impl Bus {
@@ -233,7 +232,6 @@ impl Bus {
         data_plus: DataPlusPin,
         data_minus: DataMinusPin,
         timer: Timer<CopyableTimer0>,
-        heartbeat: fn(),
     ) -> Result<Self> {
         // pio0 is used for transmitting
         let mut data_plus = data_plus.into_function::<FunctionPio0>();
@@ -323,7 +321,6 @@ impl Bus {
             start_word,
             frame: 0,
             next_frame_at: 0,
-            heartbeat,
         })
     }
 
@@ -378,8 +375,6 @@ impl Bus {
 
     /// resets the bus state for clean comms
     pub fn reset(&mut self) -> Result<()> {
-        (self.heartbeat)();
-
         // need to park the transmitter in order to executed parked instructions
         self.park_transmitter()?;
 
@@ -402,8 +397,6 @@ impl Bus {
     /// we need to keep sending bus activity to prevent
     /// the device transceiver from going to sleep
     pub fn keep_alive(&mut self) -> Result<()> {
-        (self.heartbeat)();
-
         // send a start of frame packet to the device
         if self.next_frame_at == 0 {
             self.next_frame_at = self.now_us();
@@ -434,9 +427,6 @@ impl Bus {
         reply: &mut [u8],
         acknowledge_data: bool,
     ) -> Result<Reception> {
-        // send a heartbeat
-        (self.heartbeat)();
-
         // arm the receiver and then emit the packets
         // in the case of a reply is sent very fast
         self.arm_receiver()?;

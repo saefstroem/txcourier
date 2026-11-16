@@ -114,7 +114,6 @@ fn start() -> Result<Infallible> {
         pins.gpio12,
         pins.gpio13,
         timer,
-        led::tick,
     )?;
     let mut link = Link::new(&allocator)?;
     let mut signing = SigningAttempts::new();
