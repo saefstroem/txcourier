@@ -44,6 +44,9 @@ const MAX_PACKET_SIZE_INDEX: usize = 7;
 // USB 2.0 Table 9-13: bEndpointAddress bits 3..0 are the endpoint number. Bit 7 is the
 // direction and bits 6..4 are reserved.
 const ENDPOINT_NUMBER_MASK: u8 = 0x0F;
+// Not fixed by any specification: scratch for the configuration descriptor read during
+// enumeration. The Nano S Plus descriptor is 96 bytes.
+pub(super) const DESCRIPTOR_CAPACITY: usize = 255;
 
 pub struct Ledger {
     pub interrupt_in: Endpoint,

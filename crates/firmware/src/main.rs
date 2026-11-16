@@ -30,17 +30,18 @@ use hal::pac::Peripherals;
 use hal::usb::UsbBus;
 use hal::{Sio, Timer, Watchdog};
 use txcourier_protocol::FAULT_BYTE;
+use txcourier_protocol::bitcoin;
+use txcourier_protocol::evm::Draft;
 use txcourier_protocol::policy::approve;
-use txcourier_protocol::token::decode as decode_tokens;
 use txcourier_protocol::wire::{
-    MAX_FRAME_LEN, Refusal, Request, Response, Slot, TRANSACTION_CAPACITY, Transaction,
+    Chain, MAX_FRAME_LEN, Refusal, Request, Response, Slot, TRANSACTION_CAPACITY, Transaction,
 };
 use usb_device::bus::UsbBusAllocator;
 
 use crate::error::Error;
 use crate::host::Bus;
 use crate::result::Result;
-use crate::signing::SigningAttempts;
+use crate::signing::{SigningAttempts, status_of};
 use crate::storage::Vault;
 use crate::usb::Link;
 
@@ -92,7 +93,7 @@ fn start() -> Result<Infallible> {
     announce(&vault);
 
     // move the gpio pins to ownerhsip of the LED
-    led::adopt(pins.gpio0, pins.gpio4);
+    led::adopt(pac.PIO2, pins.gpio16, &mut pac.RESETS)?;
 
     // Create the USB C bus allocator to acquire endpoint address
     // this is computed by the rp2350
@@ -127,7 +128,9 @@ fn start() -> Result<Infallible> {
         // Poll the link for connected host
         if link.poll() {
             // Serve the request
-            serve(&mut link, &mut vault, &signing, &mut frame, now_us)?;
+            serve(
+                &mut link, &mut vault, &signing, &mut bus, &mut frame, now_us,
+            )?;
         }
 
         // Check if we need to do anything
@@ -149,28 +152,42 @@ fn announce(vault: &Vault) {
 }
 
 /// Attempt to add a transaction to the vault
-fn admit(vault: &mut Vault, transaction: &[u8]) -> Response {
+fn admit_evm(vault: &mut Vault, record: &[u8]) -> Response {
+    let mut built = [0u8; TRANSACTION_CAPACITY];
+    // Decode and then RLP encode the transaction
+    let len = match Draft::decode(record).and_then(|draft| draft.encode(&mut built)) {
+        Ok(len) => len,
+        Err(error) => return refused(Refusal::from(error)),
+    };
+    let transaction = built.get(..len).unwrap_or(&[]);
+
     if let Err(error) = approve(transaction) {
         return refused(Refusal::from(error));
     }
 
-    match vault.store_pending(transaction) {
-        Ok(()) => Response::Acknowledged,
-        Err(error) => refused(Refusal::from(error)),
-    }
+    keep(vault, Chain::Ethereum, transaction)
 }
 
-/// Attempt to store tokens in the system
-fn provision(vault: &mut Vault, blob: &[u8]) -> Response {
-    if let Err(error) = vault.occupancy().may_store_pending() {
+/// Attempt to add a bitcoin transaction to the vault
+fn admit_bitcoin(vault: &mut Vault, record: &[u8]) -> Response {
+    // Decode the bitcoin transaction to ensure it is valid
+    if let Err(error) = bitcoin::Draft::decode(record) {
         return refused(Refusal::from(error));
     }
 
-    if let Err(error) = decode_tokens(blob) {
-        return refused(Refusal::from(error));
-    }
+    // Store the bitcoin transaction in the vault
+    keep(vault, Chain::Bitcoin, record)
+}
 
-    match vault.store_tokens(blob) {
+/// Store a transaction in the vault with the appropriate chain tag
+fn keep(vault: &mut Vault, chain: Chain, payload: &[u8]) -> Response {
+    let mut stored = [0u8; TRANSACTION_CAPACITY];
+    // Tag the transaction with the appropriate chain identifier
+    let Some(len) = chain.tag(payload, &mut stored) else {
+        return refused(Refusal::TooLarge);
+    };
+    // Attempt to store the tagged transaction in the vault
+    match vault.store_pending(stored.get(..len).unwrap_or(&[])) {
         Ok(()) => Response::Acknowledged,
         Err(error) => refused(Refusal::from(error)),
     }
@@ -191,6 +208,7 @@ fn serve(
     link: &mut Link<'_, UsbBus>,
     vault: &mut Vault,
     signing: &SigningAttempts,
+    bus: &mut Bus,
     frame: &mut [u8],
     now_us: u64,
 ) -> Result<()> {
@@ -212,12 +230,11 @@ fn serve(
                 Ok(state) => state.to_byte(),
                 Err(_) => FAULT_BYTE,
             },
-            provisioned: vault.provisioned(),
             refusal: signing.refusal(),
             detail: signing.detail(),
         },
         // Attempt to set a transaction
-        Request::Put(transaction) => admit(vault, transaction.as_slice()),
+        Request::PutEVM(record) => admit_evm(vault, record.as_slice()),
 
         // Attempt to read a well defined flash slot
         Request::Get(slot) => {
@@ -239,8 +256,24 @@ fn serve(
                 Err(error) => refused(Refusal::from(error)),
             }
         }
-        // Attempt to provision tokens for the system
-        Request::Provision(tokens) => provision(vault, tokens.as_slice()),
+        // request to set bitcoin transaction
+        Request::PutBitcoin(record) => admit_bitcoin(vault, record.as_slice()),
+        // request to get an address from the ledger
+        Request::Address { chain, show } => {
+            // read the address depending on which the chain the request is for
+            let read = match chain {
+                Chain::Ethereum => host::ethereum_address(bus, show),
+                Chain::Bitcoin => host::bitcoin_address(bus, show),
+            };
+            // read the address
+            match read {
+                Ok(address) => Response::Address { address },
+                Err(error) => Response::Refused {
+                    refusal: Refusal::from(error),
+                    detail: status_of(Error::Host(error)),
+                },
+            }
+        }
     };
 
     let written = response.encode(frame)?;
@@ -251,7 +284,7 @@ fn serve(
     };
 
     // Send the reply 
-    link.write(reply)?;
+    link.write(reply);
     Ok(())
 }
 

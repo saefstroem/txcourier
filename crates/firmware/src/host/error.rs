@@ -28,6 +28,7 @@ pub enum Error {
     LedgerSendFailed,
     LedgerSilent,
     NoTokenDescriptor,
+    TooManyRounds,
 }
 
 impl From<InstallError> for Error {

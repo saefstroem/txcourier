@@ -1,17 +1,8 @@
-mod descriptor;
-mod error;
-mod record;
-mod result;
-mod table;
+mod known;
 
-pub use descriptor::DESCRIPTOR_MAX;
-pub use descriptor::Summary;
-pub use descriptor::describes;
-pub use descriptor::summarize;
-pub use error::Error;
-pub use record::BLOB_MAX;
-pub use record::decode;
-pub use record::encode;
-pub use result::Result;
-pub use table::MAX_TOKENS;
-pub use table::Tokens;
+pub use known::Asset;
+pub use known::KNOWN;
+pub use known::Kind;
+pub use known::TICKER_LEN;
+pub use known::descriptor_for;
+pub use known::find;
