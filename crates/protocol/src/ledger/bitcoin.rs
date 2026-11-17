@@ -5,7 +5,6 @@ use sha2::{Digest, Sha256};
 
 pub const FINGERPRINT: [u8; 4] = [0xE1, 0x05, 0x00, 0x01]; // GET_MASTER_FINGERPRINT, CLA E1 INS 05 P1 00 reserved P2 protocol version 1: no data in, the master key's 4-byte fingerprint out, see https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L11 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L13 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L21 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L284-L290 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/src/constants.h#L23-L25 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/src/boilerplate/dispatcher.c#L135 https://github.com/bitcoin/bips/blob/b34d9f751791/bip-0032.mediawiki?plain=1#L126
 pub const EXTENDED_PUBKEY: [u8; 4] = [0xE1, 0x00, 0x00, 0x01]; // GET_EXTENDED_PUBKEY, CLA E1 INS 00 P1 00 reserved P2 protocol version 1: a display flag and a path in, the xpub as base58 text out, see https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L11 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L17 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L88-L99 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/src/handler/get_extended_pubkey.c#L160-L170 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/src/constants.h#L25
-pub const WALLET_ADDRESS: [u8; 4] = [0xE1, 0x03, 0x00, 0x01]; // GET_WALLET_ADDRESS, CLA E1 INS 03 P1 00 reserved P2 protocol version 1, see https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L11 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L19 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L169-L180 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/src/constants.h#L25
 pub const SIGN_PSBT: [u8; 4] = [0xE1, 0x04, 0x00, 0x01]; // SIGN_PSBT, CLA E1 INS 04 P1 00 reserved P2 protocol version 1, see https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L11 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L20 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L214-L222 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/src/constants.h#L25
 pub const CONTINUE: [u8; 4] = [0xF8, 0x01, 0x00, 0x01]; // CONTINUE, framework CLA F8 INS 01 P1 00 reserved P2 protocol version 1: carries the answer to a client command, see https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L11 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L24-L30 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/src/constants.h#L25
 pub const STATUS_INTERRUPTED: [u8; 2] = [0xE0, 0x00]; // SW_INTERRUPTED_EXECUTION, the status word the Ledger returns when it needs an answer before it can continue, see https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L34 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L65 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/src/boilerplate/sw.h#L90
@@ -29,7 +28,6 @@ const XPUB_LEN: usize = 111; // a mainnet xpub is 111 base58 characters, 78 byte
 const KEY_LEN: usize = 9 + ORIGIN.len() + XPUB_LEN; // one key information string: "[" and 8 fingerprint hex digits, then ORIGIN with its closing "]", then the xpub, see https://github.com/bitcoin/bips/blob/b34d9f751791/bip-0388.mediawiki?plain=1#L182-L187
 const POLICY_LEN: usize = 3 + DIGEST_LEN + 1 + DIGEST_LEN; // serialized default wallet policy: version 02, name length 00 and no name, template length 0b, sha256 of the template, key count 01, Merkle root of the one key; both varints are one byte below 253, see https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/wallet.md?plain=1#L68-L78 https://developer.bitcoin.org/reference/transactions.html#compactsize-unsigned-integers
 const COMMITMENT_LEN: usize = 1 + 2 * DIGEST_LEN; // Merkleized map commitment: pair count as a one-byte varint, keys root, values root, see https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/merkle.md?plain=1#L64-L69
-const ADDRESS_REQUEST_LEN: usize = 1 + 2 * DIGEST_LEN + 1 + 4; // GET_WALLET_ADDRESS data: display, wallet id, 32 zero bytes of hmac for a default wallet, change, address index, see https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L169-L173 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L234
 const SIGN_REQUEST_LEN: usize = COMMITMENT_LEN + 2 * (1 + DIGEST_LEN) + 2 * DIGEST_LEN; // SIGN_PSBT data: global map commitment, input count and root, output count and root, wallet id, 32 zero bytes of hmac, see https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L214-L222 https://github.com/LedgerHQ/app-bitcoin/blob/44ecd0410dcd/doc/bitcoin.md?plain=1#L234
 const BASE58: &[u8] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"; // bitcoin's base58 alphabet, see https://github.com/bitcoin/bitcoin/blob/v32.1/src/base58.cpp#L20
 const KEY_AT: usize = 45; // offset of the 33-byte key in a decoded xpub: version 4, depth 1, parent fingerprint 4, child number 4, chain code 32, see https://github.com/bitcoin/bips/blob/b34d9f751791/bip-0032.mediawiki?plain=1#L131-L136
@@ -132,14 +130,6 @@ impl Client {
             signature: [0; SIGNATURE_MAX],
             signature_len: 0,
         })
-    }
-
-    /// Creates an address request for the client.
-    pub fn address_request(&self, show: bool) -> [u8; ADDRESS_REQUEST_LEN] {
-        let mut request = [0u8; ADDRESS_REQUEST_LEN];
-        // populate the request with the show flag and client ID
-        put(&mut request, &[&[u8::from(show)], &self.id]);
-        request
     }
 
     /// Creates a sign request for the client, including the global commitment, input and output roots, and client ID.
@@ -527,13 +517,9 @@ mod tests {
     }
 
     #[test]
-    fn the_address_request_names_the_documented_default_wallet() {
+    fn the_wallet_policy_is_the_documented_default_wallet() {
         let mut client = Client::new(&FINGERPRINT, XPUB, None).expect("valid");
         assert_eq!(client.policy.to_vec(), bytes(POLICY));
-        let request = client.address_request(true);
-        assert_eq!(request[0], 1);
-        assert_eq!(request[1..33].to_vec(), bytes(ID));
-        assert_eq!(request[33..], [0u8; 37]);
         let key = [&b"[73c5da0a/84'/0'/0']"[..], XPUB].concat();
         for (hash, preimage) in [
             (bytes(ID), bytes(POLICY)),

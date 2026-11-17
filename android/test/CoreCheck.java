@@ -1,8 +1,10 @@
+import dev.txcourier.core.AddressBook;
 import dev.txcourier.core.Bitcoin;
 import dev.txcourier.core.Chain;
 import dev.txcourier.core.Courier;
 import dev.txcourier.core.Node;
 import dev.txcourier.core.Refused;
+import dev.txcourier.core.SavedAddress;
 import dev.txcourier.core.Text;
 import dev.txcourier.core.Token;
 import dev.txcourier.core.Tx;
@@ -47,7 +49,7 @@ public final class CoreCheck {
         nonces();
         publishing();
         courier();
-        addresses();
+        book();
         balances();
         tokens(args[0]);
         bitcoin();
@@ -134,6 +136,18 @@ public final class CoreCheck {
         Check.that(Node.suggest(new FakeRpc().node(FIRST, new StackOverflowError()).node(SECOND, (Object) quoted), chain(FIRST, SECOND)) == quoted, "a node that overflows the stack is skipped too");
         Check.that(Check.failure(() -> Node.suggest(new FakeRpc(), chain(FIRST))).equals("could not fetch fees (connection refused by " + FIRST + "), enter them by hand"), "the last failure is reported");
         Check.that(Check.failure(() -> Node.suggest(new FakeRpc(), chain())).equals("could not fetch fees (no node is known for BNB Smart Chain (56)), enter them by hand"), "a chain without nodes says so");
+    }
+
+    private static void book() {
+        String stored = AddressBook.added(AddressBook.added("", "My Ledger", " 0xF5f107abd30e733FDB3355Fc07930410C425B7e7 "), "Savings\nline", "BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4");
+        List<SavedAddress> book = AddressBook.read(stored);
+        Check.that(book.equals(List.of(new SavedAddress("My Ledger", "0xf5f107abd30e733fdb3355fc07930410c425b7e7"),
+                new SavedAddress("Savingsline", "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4"))), "addresses are kept in order and normalized: " + book);
+        Check.that(AddressBook.evm(book).equals(book.subList(0, 1)) && AddressBook.bitcoin(book).equals(book.subList(1, 2)), "each chain sees only its own addresses");
+        Check.that(Check.failure(() -> AddressBook.added(stored, "Again", "0xf5f107abd30e733fdb3355fc07930410c425b7e7")).equals("this address is already saved as My Ledger"), "an address is saved once");
+        Check.that(Check.failure(() -> AddressBook.added("", " ", RECIPIENT)).equals("a label is needed"), "a label is needed");
+        Check.that(Check.failure(() -> AddressBook.added("", "Old", "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2")).startsWith("'1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2' is neither"), "other address kinds are refused");
+        Check.that(AddressBook.read(AddressBook.removed(stored, book.get(0))).equals(book.subList(1, 2)), "a removed address is gone");
     }
 
     private static void nonces() throws Exception {
@@ -234,23 +248,6 @@ public final class CoreCheck {
         Check.that(Check.failure(() -> courier("52570181ffff").status()).equals("courier announced 65535 bytes, more than a frame holds"), "an oversized answer is refused before it is read");
         Check.that(Check.failure(() -> courier("5257018104").status()).equals("end of stream"), "a cut answer is a read failure");
         Check.that(Check.failure(() -> courier("").putEVM(new byte[2049])).equals("a request of 2049 bytes is too large for the courier"), "an oversized request is refused");
-    }
-
-    private static void addresses() throws Exception {
-        String evm = "0xF5f107abd30e733FDB3355Fc07930410C425B7e7";
-        ScriptedLink read = new ScriptedLink(Text.bytes("525701902800" + ascii(evm.substring(2))));
-        Check.that(new Courier(read).address(Courier.ETHEREUM_IDENTIFIER, false).equals(evm), "an EVM address reads back as the Ledger wrote it");
-        Check.that(Text.hex(read.written.toByteArray()).equals("0x5257011002003700"), "a quiet address request names the account");
-        String bitcoin = "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu";
-        ScriptedLink shown = new ScriptedLink(Text.bytes("525701902a00" + ascii(bitcoin)));
-        Check.that(new Courier(shown).address(Courier.BITCOIN_IDENTIFIER, true).equals(bitcoin), "a Bitcoin address reads back");
-        Check.that(Text.hex(shown.written.toByteArray()).equals("0x5257011002008701"), "an address request can ask the Ledger to show it");
-        for (String odd : new String[] {"0xF5f107abd30e733FDB3355Fc07930410C425B7e", "bc1pcr8te4kr609gcawutmrza0j4xv80jy8z306fyu", "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyb", ""}) {
-            Check.that(Check.failure(() -> courier("52570190" + String.format("%02x00", odd.length()) + ascii(odd)).address(Courier.BITCOIN_IDENTIFIER, false))
-                    .equals("courier's answer " + odd + " is not an address"), "an odd address is refused: " + odd);
-        }
-        Check.that(Check.failure(() -> courier("5257018e03000e6985").address(Courier.ETHEREUM_IDENTIFIER, true)).equals("courier refused: you declined on the Ledger (the Ledger answered 0x6985)"), "a declined display is explained");
-        Check.that(Check.failure(() -> courier("5257018e03000f6e00").address(Courier.BITCOIN_IDENTIFIER, false)).equals("courier refused: Ledger did not complete the request (the Ledger answered 0x6e00)"), "the wrong Ledger app shows its status word");
     }
 
     private static void balances() throws Exception {

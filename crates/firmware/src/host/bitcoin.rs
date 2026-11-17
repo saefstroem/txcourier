@@ -1,9 +1,9 @@
 use txcourier_protocol::bitcoin::{Draft, PUBLIC_KEY_LEN};
 use txcourier_protocol::ledger::{
     self, ACCOUNT_REQUEST, CONTINUE, Client, EXTENDED_PUBKEY, FINGERPRINT, KEY_REQUEST,
-    MAX_DATA_LEN, Reply, SIGN_PSBT, STATUS_INTERRUPTED, WALLET_ADDRESS, public_key, require_ok,
+    MAX_DATA_LEN, SIGN_PSBT, STATUS_INTERRUPTED, public_key, require_ok,
 };
-use txcourier_protocol::wire::{Address, Packet};
+use txcourier_protocol::wire::Packet;
 
 use crate::host::apdu::{BRISK_FRAMES, PATIENT_FRAMES, RESPONSE_MAX, ask};
 use crate::host::bus::Bus;
@@ -34,22 +34,6 @@ pub fn sign(bus: &mut Bus, record: &[u8], out: &mut [u8]) -> Result<usize> {
     // Discuss with the Ledger and interactively validate and retrieve signature for PSBT
     converse(bus, ledger, &mut client, SIGN_PSBT, &psbt, PATIENT_FRAMES)?;
     Ok(client.signed(out)?)
-}
-
-/// Retrieves the Bitcoin wallet address from the attached Ledger device, optionally displaying it on the device.
-pub fn address(bus: &mut Bus, show: bool) -> Result<Address> {
-    // Prepare the communication buffers and attach to the Ledger device.
-    let mut reply = [0u8; Packet::CAPACITY];
-    let mut scratch = [0u8; DESCRIPTOR_CAPACITY];
-    let ledger = &mut device::attach(bus, &mut reply, &mut scratch)?;
-    // Determine the patience level based on whether the address should be displayed.
-    let patience = if show { PATIENT_FRAMES } else { BRISK_FRAMES };
-    // Initialize the bitcoin client without signing capabilities.
-    let mut client = client(bus, ledger, None)?;
-    // Generate the address request for the client.
-    let request = client.address_request(show);
-    // Interact with the Ledger to retrieve the wallet address.
-    converse(bus, ledger, &mut client, WALLET_ADDRESS, &request, patience)
 }
 
 /// Initializes the Bitcoin client with the provided Ledger device and optional signing capabilities.
@@ -90,14 +74,14 @@ fn converse(
     header: [u8; 4],
     data: &[u8],
     patience: u32,
-) -> Result<Reply> {
+) -> Result<()> {
     let mut response = [0u8; RESPONSE_MAX];
     let mut len = ask(bus, ledger, header, data, &mut response, patience)?;
     for _ in 0..MOST_ROUNDS {
         let answered = response.get(..len).unwrap_or(&[]);
         let Some((command, &STATUS_INTERRUPTED)) = answered.split_last_chunk() else {
-            let data = require_ok(answered)?;
-            return Reply::from_slice(data).map_err(|_| Error::ReplyTooLong);
+            require_ok(answered)?;
+            return Ok(());
         };
         let mut reply = [0u8; MAX_DATA_LEN];
         let reply_len = client.answer(command, &mut reply)?;

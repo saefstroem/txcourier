@@ -2,7 +2,6 @@ package dev.txcourier.core;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 public final class Courier {
@@ -19,19 +18,15 @@ public final class Courier {
     private static final int PUT = 0x0E;
     private static final int GET = 0x08;
     private static final int CLEAR = 0x0D;
-    private static final int ADDRESS = 0x10;
     private static final int PUT_BITCOIN = 0x13;
     private static final int STATUS_REPLY = 0x81;
     private static final int SLOT_REPLY = 0x87;
     private static final int DONE = 0x88;
     private static final int REFUSED = 0x8E;
-    private static final int ADDRESS_REPLY = 0x90;
     private static final int VERSION = 1;
     private static final int HEADER_LEN = 6;
     private static final int MAX_PAYLOAD = 2048;
     private static final int BRISK_MILLIS = 3_000;
-    private static final int LEDGER_MILLIS = 20_000;
-    private static final int PATIENT_MILLIS = 320_000;
 
     // The raw link to the courier device.
     private final Link link;
@@ -76,16 +71,6 @@ public final class Courier {
     // Stores an unsigned Bitcoin transaction in the courier's pending slot.
     public void putBitcoin(byte[] record) throws IOException {
         ask(PUT_BITCOIN, record, DONE, BRISK_MILLIS);
-    }
-
-    public String address(byte account, boolean show) throws IOException {
-        byte[] reply = ask(ADDRESS, new byte[] {account, (byte) (show ? 1 : 0)}, ADDRESS_REPLY,
-                show ? PATIENT_MILLIS : LEDGER_MILLIS);
-        String address = (account == ETHEREUM_IDENTIFIER ? "0x" : "") + new String(reply, StandardCharsets.US_ASCII);
-        if (!address.matches("0x[0-9a-fA-F]{40}|" + Bitcoin.ADDRESS)) {
-            throw new IOException("courier's answer " + Text.clean(address) + " is not an address");
-        }
-        return address;
     }
 
     // Sends a request to the courier and waits for the expected reply with a specified timeout.

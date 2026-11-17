@@ -24,8 +24,6 @@ pub enum Error {
     ResponseTooLong(usize),
     #[error("the reply ended before its declared length")]
     ResponseTruncated,
-    #[error("the Ledger's address is not in the expected form")]
-    MalformedAddress,
     #[error("the Ledger's fingerprint or account key is not in the expected form")]
     MalformedKey,
     #[error("the Ledger asked for data this wallet does not commit to")]

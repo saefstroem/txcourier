@@ -1,5 +1,4 @@
 use crate::wire::frame;
-use crate::wire::record::Address;
 use crate::wire::refusal::Refusal;
 use crate::wire::result::Result;
 use crate::wire::transaction::Transaction;
@@ -8,7 +7,6 @@ const STATUS: u8 = 0x81;
 const SLOT: u8 = 0x87;
 const ACKNOWLEDGED: u8 = 0x88;
 const REFUSED: u8 = 0x8E;
-const ADDRESS: u8 = 0x90;
 
 // No Refusal is numbered 0
 const NO_REFUSAL: u8 = 0;
@@ -27,9 +25,6 @@ pub enum Response {
     Refused {
         refusal: Refusal,
         detail: u16,
-    },
-    Address {
-        address: Address,
     },
 }
 
@@ -54,7 +49,6 @@ impl Response {
                 let [high, low] = detail.to_be_bytes();
                 frame::encode(REFUSED, &[refusal.to_byte(), high, low], out)
             }
-            Self::Address { address } => frame::encode(ADDRESS, address.as_slice(), out),
         }
     }
 }
@@ -62,8 +56,6 @@ impl Response {
 #[cfg(test)]
 mod tests {
     use super::ACKNOWLEDGED;
-    use super::ADDRESS;
-    use super::Address;
     use super::REFUSED;
     use super::Refusal;
     use super::Response;
@@ -81,7 +73,7 @@ mod tests {
 
     #[test]
     fn the_encoded_bytes_of_every_response_are_pinned() {
-        let expected: [(Response, Vec<u8>); 5] = [
+        let expected: [(Response, Vec<u8>); 4] = [
             (
                 Response::Status {
                     state: DeviceState::Idle.to_byte(),
@@ -107,12 +99,6 @@ mod tests {
                 },
                 vec![0x52, 0x57, 0x01, 0x8E, 0x03, 0x00, 0x0E, 0x69, 0x85],
             ),
-            (
-                Response::Address {
-                    address: Address::from_slice(b"0x").expect("fits"),
-                },
-                vec![0x52, 0x57, 0x01, 0x90, 0x02, 0x00, 0x30, 0x78],
-            ),
         ];
 
         for (response, bytes) in expected {
@@ -122,7 +108,7 @@ mod tests {
 
     #[test]
     fn no_single_flipped_bit_turns_one_opcode_into_another() {
-        let opcodes = [STATUS, SLOT, ACKNOWLEDGED, REFUSED, ADDRESS];
+        let opcodes = [STATUS, SLOT, ACKNOWLEDGED, REFUSED];
 
         for (index, first) in opcodes.iter().enumerate() {
             for second in opcodes.iter().skip(index + 1) {

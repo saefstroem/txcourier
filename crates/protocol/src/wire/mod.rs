@@ -19,7 +19,6 @@ pub use frame::HEADER_LEN;
 pub use frame::MAX_FRAME_LEN;
 pub use frame::frame_len;
 pub use packet::Packet;
-pub use record::Address;
 pub use record::BitcoinRecord;
 pub use record::EVMRecord;
 pub use refusal::Refusal;
