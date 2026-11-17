@@ -145,8 +145,10 @@ public final class CoreCheck {
         Check.that(Check.failure(() -> Node.checkNonce(fresh, chain(FIRST, SECOND), RECIPIENT, "1"))
                 .equals("nonce 1 is too high: the next nonce of this address on BNB Smart Chain (56) is 0"), "a nonce nodes would hold back is refused");
         Check.that(fresh.calls.equals(List.of("nonce " + FIRST)), "no other node is asked to overrule the refusal: " + fresh.calls);
-        Check.that(Check.failure(() -> Node.checkNonce(new FakeRpc(), chain(FIRST), RECIPIENT, "0")).equals("could not check the nonce (connection refused by " + FIRST + ")"), "no answer means no review");
+        Check.that(Check.failure(() -> Node.checkNonce(new FakeRpc(), chain(FIRST), RECIPIENT, "0")).equals("could not fetch the nonce (connection refused by " + FIRST + ")"), "no answer means no review");
         Check.that(Check.failure(() -> Node.checkNonce(new FakeRpc(), chain(FIRST), RECIPIENT, "")).equals("nonce: '' is not a number"), "an empty nonce is refused before a node is asked");
+        FakeRpc fetched = new FakeRpc().node(FIRST, new IOException("down")).node(SECOND, BigInteger.valueOf(7));
+        Check.that(Node.nonce(fetched, chain(FIRST, SECOND), RECIPIENT).equals(BigInteger.valueOf(7)), "the next nonce is fetched from the first node that answers");
     }
 
     private static void expectRaise(BigInteger quote) {
