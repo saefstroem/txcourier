@@ -4,10 +4,12 @@ import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Insets;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.os.Bundle;
 import android.text.InputType;
+import android.view.WindowInsets;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -62,7 +64,11 @@ public final class MainActivity extends Activity {
         page.setOrientation(LinearLayout.VERTICAL);
         page.setPadding(dp(GUTTER_DP), dp(GUTTER_DP), dp(GUTTER_DP), dp(GUTTER_DP));
         ScrollView scroll = new ScrollView(this);
-        scroll.setFitsSystemWindows(true); // adjust for system windows
+        scroll.setOnApplyWindowInsetsListener((view, insets) -> {
+            Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout() | WindowInsets.Type.ime());
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            return WindowInsets.CONSUMED;
+        });
         scroll.setFilterTouchesWhenObscured(true); // prevent touch injection
         scroll.addView(page); // add the main page layout to the scroll view
         setContentView(scroll); // set the scroll view as the content view
@@ -164,25 +170,29 @@ public final class MainActivity extends Activity {
         Spinner asset = spinner(ASSETS);
         EditText to = field("Recipient (0x-prefixed)", TEXT);
         EditText amount = field("Amount (whole coin units)", DECIMAL);
-        EditText nonce = field("Nonce", WHOLE);
+        EditText nonce = field("Nonce (filled in by Fetch nonce and fees)", WHOLE);
         EditText tip = field("Priority fee in gwei", DECIMAL);
         EditText maxFee = field("Max fee in gwei", DECIMAL);
         EditText gas = field("Gas limit (leave empty for default)", WHOLE);
         // button to suggest appropriate fees based on the selected asset's chain
-        button("Suggest fees", () -> {
+        button("Fetch nonce and fees", () -> {
             // determine the chain of the selected asset
             Chain chain = (Chain) chains.getSelectedItem();
-            run(networkThread, () -> Node.suggest(rpc, chain), fees -> {
+            run(networkThread, () -> {
+                BigInteger[] fees = Node.suggest(rpc, chain);
+                return new BigInteger[] {fees[0], fees[1], Node.nonce(rpc, chain, address)};
+            }, fees -> {
                 // if anyone changed the selected asset's chain while fees were being suggested
                 if (chains.getSelectedItem() != chain) {
                     // the selected asset's chain has changed, so we should not use the suggested fees
-                    say("x another chain is chosen now, suggest fees again");
+                    say("x another chain is chosen now, fetch nonce and fees again");
                     return;
                 }
                 // ensure the priority fee is raised by 50% for faster inclusion
                 BigInteger raised = Node.raise(fees[1]);
                 say(chain + ": base fee " + gwei(fees[0]) + " gwei, priority fee " + gwei(fees[1])
                         + " gwei, suggested with 50% more priority fee for faster inclusion");
+                nonce.setText(fees[2].toString());
                 tip.setText(gwei(raised));
                 maxFee.setText(gwei(Node.maxFee(fees[0], raised)));
             });
@@ -193,6 +203,8 @@ public final class MainActivity extends Activity {
             String typed = text(nonce);
             byte[] record = Tx.build(chain, (String) asset.getSelectedItem(), text(to), text(amount), typed, text(tip),
                     text(maxFee), text(gas));
+            open();
+            say("checking the nonce...");
             run(networkThread, () -> Node.checkNonce(rpc, chain, address, typed), next -> review(record, chain));
         });
     }
