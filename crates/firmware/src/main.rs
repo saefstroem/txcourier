@@ -41,7 +41,7 @@ use usb_device::bus::UsbBusAllocator;
 use crate::error::Error;
 use crate::host::Bus;
 use crate::result::Result;
-use crate::signing::{SigningAttempts, status_of};
+use crate::signing::SigningAttempts;
 use crate::storage::Vault;
 use crate::usb::Link;
 
@@ -128,7 +128,7 @@ fn start() -> Result<Infallible> {
         if link.poll() {
             // Serve the request
             serve(
-                &mut link, &mut vault, &signing, &mut bus, &mut frame, now_us,
+                &mut link, &mut vault, &signing, &mut frame, now_us,
             )?;
         }
 
@@ -207,7 +207,6 @@ fn serve(
     link: &mut Link<'_, UsbBus>,
     vault: &mut Vault,
     signing: &SigningAttempts,
-    bus: &mut Bus,
     frame: &mut [u8],
     now_us: u64,
 ) -> Result<()> {
@@ -257,22 +256,6 @@ fn serve(
         }
         // request to set bitcoin transaction
         Request::PutBitcoin(record) => admit_bitcoin(vault, record.as_slice()),
-        // request to get an address from the ledger
-        Request::Address { chain, show } => {
-            // read the address depending on which the chain the request is for
-            let read = match chain {
-                Chain::Ethereum => host::ethereum_address(bus, show),
-                Chain::Bitcoin => host::bitcoin_address(bus, show),
-            };
-            // read the address
-            match read {
-                Ok(address) => Response::Address { address },
-                Err(error) => Response::Refused {
-                    refusal: Refusal::from(error),
-                    detail: status_of(Error::Host(error)),
-                },
-            }
-        }
     };
 
     let written = response.encode(frame)?;

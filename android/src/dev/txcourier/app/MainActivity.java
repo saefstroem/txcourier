@@ -17,19 +17,19 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
+import dev.txcourier.core.AddressBook;
 import dev.txcourier.core.Bitcoin;
 import dev.txcourier.core.Chain;
 import dev.txcourier.core.Courier;
 import dev.txcourier.core.Node;
+import dev.txcourier.core.SavedAddress;
 import dev.txcourier.core.Text;
 import dev.txcourier.core.Tx;
 import dev.txcourier.core.UnspentOutput;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -44,6 +44,7 @@ public final class MainActivity extends Activity {
     private static final int GUTTER_DP = 16; // standard padding around the page
     private static final int BUTTON_GAP_DP = 16; // gap between buttons
     private static final int CONFIRM_GAP_DP = 64; // gap before confirmation sections
+    private static final String BOOK = "addresses";
     private static final List<String> ASSETS = List.of("ETH", "BNB", "USDT", "USDC", "PAXG", "VTIon", "IEFAon", "IEMGon", "NVDAon");
 
     // Executor services for handling USB and network operations.
@@ -55,7 +56,6 @@ public final class MainActivity extends Activity {
     private LinearLayout page;
     private Object screen;
     private volatile Chain handedOver;
-    private final Map<Byte, String> addresses = new HashMap<>();
 
     @Override
     protected void onCreate(Bundle saved) {
@@ -88,6 +88,9 @@ public final class MainActivity extends Activity {
         button("Show status", this::status); // show the current status
         button("EVM account", () -> account(Courier.ETHEREUM_IDENTIFIER)); // show the Ethereum account
         button("Bitcoin account", () -> account(Courier.BITCOIN_IDENTIFIER)); // show the Bitcoin account
+        button("Configure addresses", this::book);
+        button("Send on EVM Network", this::sendEvm);
+        button("Send bitcoin", this::sendBitcoin);
         button("Show the signed transaction", this::signed); // display the signed transaction
         button("Clear the pending transaction", () -> discard(Courier.PENDING, "pending")); // clear the pending transaction
         button("Clear the signed transaction", () -> discard(Courier.SIGNED, "signed")); // clear the signed transaction
@@ -102,44 +105,85 @@ public final class MainActivity extends Activity {
     private void account(byte account) {
         open(); // opens main screen
         boolean evm = account == Courier.ETHEREUM_IDENTIFIER; // detect whihc account user wants to see
-        String address = addresses.get(account); // get the address for the requested account type
-        if (address == null) { // if the address is not yet known, prompt the user to read it from the Ledger
-            say("plug the Ledger into the courier, unlock it and open its " + (evm ? "Ethereum" : "Bitcoin") + " app");
-            button("Read the address from the Ledger", () -> courier(courier -> courier.address(account, false), read -> { // request address from ledger
-                addresses.put(account, read);
-                account(account);
-            }));
+        List<SavedAddress> book = AddressBook.read(stored());
+        List<SavedAddress> saved = evm ? AddressBook.evm(book) : AddressBook.bitcoin(book);
+        if (saved.isEmpty()) {
+            say("add a " + (evm ? "0x" : "bc1q") + " address under Configure addresses first");
             return;
         }
-        // display the address and provide options to show it on the Ledger or check balances
-        say(evm ? "address on EVM, m/44'/60'/0'/0/0" : "native segwit rcv address, m/84'/0'/0'/0/0");
-        say(address);
-        button("Show it on the Ledger", () -> { // show the address on the Ledger for user verification
-            say("compare the Ledger's screen with the address above, then approve it there");
-            courier(courier -> courier.address(account, true), shown -> say(shown.equals(address)
-                    ? ":) Ledger shows the same address"
-                    : "x Ledger shows " + shown + ", which is not the address above"));
-        });
+        Spinner chosen = spinner(saved);
         if (evm) { // if the account is an EVM account, show balances for each known chain
             for (Chain chain : Chain.KNOWN) { // for each known EVM chain, provide a button to check balances
                 button(chain.name() + " balances", () -> {
+                    String address = ((SavedAddress) chosen.getSelectedItem()).address();
                     open();
                     say(chain + " " + address);
                     run(networkThread, () -> Node.balances(rpc, chain, address), this::lines); // read the balances then print lines with it
                 });
             }
-            button("Send", () -> send(address)); // initiate a new transaction
         } else {
             button("Bitcoin balance", () -> { // read the ledgers bitcoin balance
+                String address = ((SavedAddress) chosen.getSelectedItem()).address();
                 open();
                 say("Bitcoin " + address);
                 run(networkThread, () -> BitcoinExplorer.balance(address), this::say); // get the balance and state it
             });
-            button("Send bitcoin", () -> sendBitcoin(address)); // request to send bitcoin
         }
     }
 
-    private void sendBitcoin(String address) {
+    // shows the address book view
+    private void book() {
+        open(); // clear the view
+        button("+", () -> { // add a new address
+            open();
+            EditText label = field("Label", TEXT);
+            EditText address = field("Address (0x... or bc1q...)", TEXT);
+            button("Save", () -> {
+                save(AddressBook.added(stored(), text(label), text(address))); // save the new address
+                book(); // refresh the address book view
+            });
+        });
+        List<SavedAddress> saved = AddressBook.read(stored());
+        if (saved.isEmpty()) {
+            say("no addresses yet, add one with +");
+        }
+        for (SavedAddress entry : saved) {
+            say(entry.toString());
+            hold("Hold to remove " + entry.label(), () -> { // remove an address on hold
+                save(AddressBook.removed(stored(), entry)); // save the updated address book
+                book(); // refresh the address book view
+            });
+        }
+    }
+
+    // retrieves the stored address book string
+    private String stored() {
+        return getSharedPreferences(BOOK, MODE_PRIVATE).getString(BOOK, "");
+    }
+
+    // saves the updated address book string
+    private void save(String stored) {
+        getSharedPreferences(BOOK, MODE_PRIVATE).edit().putString(BOOK, stored).commit();
+    }
+
+    // initiates the process of sending Bitcoin
+    private void sendBitcoin() {
+        open(); // clear the view for sending Bitcoin
+        // get the list of saved Bitcoin addresses
+        List<SavedAddress> saved = AddressBook.bitcoin(AddressBook.read(stored()));
+        if (saved.isEmpty()) {
+            say("add a bc1q address under Configure addresses first");
+            return;
+        }
+        // display the sender selection UI
+        say("Sender");
+        Spinner from = spinner(saved);
+        // let the user select the sender address from the saved Bitcoin addresses
+        button("Show its coins", () -> sendBitcoin(((SavedAddress) from.getSelectedItem()).address(), saved));
+    }
+
+    // handles the process of sending Bitcoin after the sender is selected
+    private void sendBitcoin(String address, List<SavedAddress> saved) {
         open();
         say("coins of " + address); // display the coins available at the address
         run(networkThread, () -> BitcoinExplorer.coins(address), coins -> { // fetch the UTXOs at the address
@@ -148,11 +192,12 @@ public final class MainActivity extends Activity {
                 return;
             }
             Spinner coin = spinner(coins); // let the user select a UTXO to spend
-            EditText to = field("Recipient (bc1q...)", TEXT); // input for the recipient address
+            say("Recipient");
+            Spinner to = spinner(saved); // let the user select the recipient address from the saved Bitcoin addresses
             EditText amount = field("Amount in BTC (leave empty to send the whole coin)", DECIMAL); // input for the amount to send
             EditText rate = field("Fee rate in sat/vB", DECIMAL); // input for the fee rate
             button("Review", () -> { // button to review the transaction before sending
-                byte[] record = Bitcoin.build(address, (UnspentOutput) coin.getSelectedItem(), text(to), text(amount), text(rate)); // build the tx
+                byte[] record = Bitcoin.build(address, (UnspentOutput) coin.getSelectedItem(), ((SavedAddress) to.getSelectedItem()).address(), text(amount), text(rate)); // build the tx
                 open();
                 lines(Bitcoin.describe(record)); // describe the transaction for review
                 confirm("Hand this transaction to the courier?", () -> courier(courier -> { // send the transaction to the courier for signing
@@ -164,11 +209,20 @@ public final class MainActivity extends Activity {
         });
     }
 
-    private void send(String address) {
+    private void sendEvm() {
         open(); // open the screen for sending a new transaction
+        // get the list of saved EVM addresses
+        List<SavedAddress> saved = AddressBook.evm(AddressBook.read(stored()));
+        if (saved.isEmpty()) {
+            say("add a 0x address under Configure addresses first");
+            return;
+        }
+        say("Sender"); // select the sender address for the EVM transaction
+        Spinner from = spinner(saved);
         Spinner chains = spinner(Chain.KNOWN);
         Spinner asset = spinner(ASSETS);
-        EditText to = field("Recipient (0x-prefixed)", TEXT);
+        say("Recipient"); // select the recipient address for the EVM transaction
+        Spinner to = spinner(saved);
         EditText amount = field("Amount (whole coin units)", DECIMAL);
         EditText nonce = field("Nonce (filled in by Fetch nonce and fees)", WHOLE);
         EditText tip = field("Priority fee in gwei", DECIMAL);
@@ -178,14 +232,16 @@ public final class MainActivity extends Activity {
         button("Fetch nonce and fees", () -> {
             // determine the chain of the selected asset
             Chain chain = (Chain) chains.getSelectedItem();
+            Object sender = from.getSelectedItem(); // get the sender
+            String address = ((SavedAddress) sender).address(); // cast and get the address
             run(networkThread, () -> {
                 BigInteger[] fees = Node.suggest(rpc, chain);
                 return new BigInteger[] {fees[0], fees[1], Node.nonce(rpc, chain, address)};
             }, fees -> {
                 // if anyone changed the selected asset's chain while fees were being suggested
-                if (chains.getSelectedItem() != chain) {
+                if (chains.getSelectedItem() != chain || from.getSelectedItem() != sender) {
                     // the selected asset's chain has changed, so we should not use the suggested fees
-                    say("x another chain is chosen now, fetch nonce and fees again");
+                    say("x another chain or sender is chosen now, fetch nonce and fees again");
                     return;
                 }
                 // ensure the priority fee is raised by 50% for faster inclusion
@@ -201,16 +257,17 @@ public final class MainActivity extends Activity {
         button("Review", () -> {
             Chain chain = (Chain) chains.getSelectedItem();
             String typed = text(nonce);
-            byte[] record = Tx.build(chain, (String) asset.getSelectedItem(), text(to), text(amount), typed, text(tip),
+            String address = ((SavedAddress) from.getSelectedItem()).address(); // get the sender's address for the EVM transaction
+            byte[] record = Tx.build(chain, (String) asset.getSelectedItem(), ((SavedAddress) to.getSelectedItem()).address(), text(amount), typed, text(tip),
                     text(maxFee), text(gas));
             open();
             say("checking the nonce...");
-            run(networkThread, () -> Node.checkNonce(rpc, chain, address, typed), next -> review(record, chain));
+            run(networkThread, () -> Node.checkNonce(rpc, chain, address, typed), next -> reviewEvm(record, chain));
         });
     }
 
     // Reviews the unsigned transaction and allows the user to hand it to the courier.
-    private void review(byte[] record, Chain chain) {
+    private void reviewEvm(byte[] record, Chain chain) {
         // describe the unsigned transaction for the user to review
         List<String> lines = Tx.describe(record);
         open();

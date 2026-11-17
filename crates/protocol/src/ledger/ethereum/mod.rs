@@ -1,9 +1,6 @@
-mod address;
 mod path;
 mod sign;
 
-pub use address::INSTRUCTION_ADDRESS;
-pub use address::ethereum_address;
 pub use path::DEFAULT_ACCOUNT;
 pub use path::PATH_LEN;
 pub use path::encode as encode_path;

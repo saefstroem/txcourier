@@ -30,7 +30,7 @@ lines_in_src() {
 check "the checkout is clean" "$(git -C "$root" status --porcelain --untracked-files=normal)" ""
 check "only the USB manager and HTTPS reach outside the app" \
     "$(lines_in_src 'Socket|URLConnection|toURL|java\.net|ProcessBuilder|getRuntime|exec\(|loadLibrary|ClassLoader|forName|java\.lang\.reflect|java\.lang\.invoke|getDeclared|setAccessible|getMethod|java\.nio\.file|FileOutputStream|FileWriter|RandomAccess|PrintWriter|new File\(|getSystemService|getContentResolver|SharedPreferences|startActivity|sendBroadcast|android\.util\.Log|WebView|TrustManager|HostnameVerifier')" \
-    "dev/txcourier/app/HttpRpc.java:3 dev/txcourier/app/MainActivity.java:1 "
+    "dev/txcourier/app/HttpRpc.java:3 dev/txcourier/app/MainActivity.java:3 "
 check "only these hosts are named in the app and build.sh" \
     "$(cd "$here" && grep -rhoE 'https?://[^"]+' src build.sh | sort -u | tr '\n' ' ')" \
     "https://1rpc.io/bnb https://1rpc.io/eth https://bsc-dataseed.bnbchain.org https://bsc-rpc.publicnode.com https://bscscan.com/tx/ https://dl.google.com/android/repository https://eth.drpc.org https://etherscan.io/tx/ https://mempool.space/api/address/ https://mempool.space/api/tx https://mempool.space/tx/ https://rpc.flashbots.net "

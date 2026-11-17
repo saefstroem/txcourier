@@ -6,10 +6,6 @@ pub type EVMRecord = Bytes<RECORD_LEN>;
 
 pub type BitcoinRecord = Bytes<BITCOIN_RECORD_LEN>;
 
-pub type Address = Bytes<ADDRESS_CAPACITY>;
-
-const ADDRESS_CAPACITY: usize = 64;
-
 #[cfg(test)]
 mod tests {
     use super::EVMRecord;

@@ -1,6 +1,5 @@
 use crate::ledger::error::Error;
 use crate::ledger::result::Result;
-use crate::wire::Bytes;
 
 // ledger-secure-sdk lib_standard_app/offsets.h: OFFSET_CDATA is 5, after CLA, INS, P1, P2
 // and Lc. ISO 7816-4 fixes the four-byte header; Lc is always sent here, even as 0x00.
@@ -12,9 +11,6 @@ pub const STATUS_LEN: usize = 2;
 // ISO 7816-4 Table 5: '9000' is normal processing. ledger-secure-sdk names it SWO_SUCCESS.
 // '61XX' is also normal processing; require_ok() accepts only '9000'.
 pub const STATUS_OK: u16 = 0x9000;
-
-// the body of a command's final reply, kept only for GET_WALLET_ADDRESS, whose longest answer is a 62-character address; sized like wire::Address so an address needs no copy; txcourier's own
-pub type Reply = Bytes<64>;
 
 /// builds one smartcard command to the Ledger
 pub fn command(
