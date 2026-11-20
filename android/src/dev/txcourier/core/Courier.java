@@ -49,7 +49,7 @@ public final class Courier {
         };
         return List.of(
                 "state   " + state,
-                "accepts an EIP-1559 transfer of ETH, BNB, USDT, USDC, PAXG, VTIon, IEFAon, IEMGon or NVDAon, or a bitcoin payment from one coin",
+                "accepts an EIP-1559 transfer of ETH, BNB, USDT, USDC, EURC, PAXG, VTIon, IEFAon, IEMGon or NVDAon, or a bitcoin payment from one coin",
                 "signing " + (status[1] == 0 ? "no failed attempt recorded" : refusal(status, 1)));
     }
 

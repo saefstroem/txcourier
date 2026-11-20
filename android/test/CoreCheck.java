@@ -211,7 +211,7 @@ public final class CoreCheck {
         ScriptedLink link = new ScriptedLink(Text.bytes("525701810400a1000000"));
         Check.that(new Courier(link).status().equals(List.of(
                 "state   idle",
-                "accepts an EIP-1559 transfer of ETH, BNB, USDT, USDC, PAXG, VTIon, IEFAon, IEMGon or NVDAon, or a bitcoin payment from one coin",
+                "accepts an EIP-1559 transfer of ETH, BNB, USDT, USDC, EURC, PAXG, VTIon, IEFAon, IEMGon or NVDAon, or a bitcoin payment from one coin",
                 "signing no failed attempt recorded")), "an idle status reads in words");
         Check.that(Text.hex(link.written.toByteArray()).equals("0x525701010000"), "a status request is one frame");
         List<String> declined = new Courier(new ScriptedLink(Text.bytes("525701810400b20e6985"))).status();
@@ -251,13 +251,14 @@ public final class CoreCheck {
     }
 
     private static void balances() throws Exception {
-        Chain chain = new Chain(1, "Ethereum", "ETH", List.of(FIRST, SECOND), "", ETHEREUM.tokens().subList(0, 3));
+        Chain chain = new Chain(1, "Ethereum", "ETH", List.of(FIRST, SECOND), "", ETHEREUM.tokens().subList(0, 4));
         FakeRpc rpc = new FakeRpc().node(FIRST, new IOException("down"))
-                .node(SECOND, BigInteger.valueOf(15).multiply(BigInteger.TEN.pow(17)), BigInteger.valueOf(12_500_000), BigInteger.ZERO, BigInteger.ONE);
-        Check.that(Node.balances(rpc, chain, RECIPIENT).equals(List.of("1.5 ETH", "12.5 USDT", "0 USDC", "0.000000000000000001 PAXG")), "balances read in each asset's own units");
+                .node(SECOND, BigInteger.valueOf(15).multiply(BigInteger.TEN.pow(17)), BigInteger.valueOf(12_500_000), BigInteger.ZERO, BigInteger.valueOf(2_500_000), BigInteger.ONE);
+        Check.that(Node.balances(rpc, chain, RECIPIENT).equals(List.of("1.5 ETH", "12.5 USDT", "0 USDC", "2.5 EURC", "0.000000000000000001 PAXG")), "balances read in each asset's own units");
         Check.that(rpc.calls.equals(List.of("balance " + FIRST, "balance " + SECOND,
                 "token 0xdAC17F958D2ee523a2206206994597C13D831ec7 " + SECOND,
                 "token 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 " + SECOND,
+                "token 0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c " + SECOND,
                 "token 0x45804880De22913dAFE09f4980848ECE6EcbAf78 " + SECOND)), "a dead node is skipped and every token is asked of one node: " + rpc.calls);
         Check.that(Check.failure(() -> Node.balances(new FakeRpc(), chain(FIRST), RECIPIENT)).equals("could not fetch balances (connection refused by " + FIRST + ")"), "the last failure is reported");
     }
@@ -275,7 +276,7 @@ public final class CoreCheck {
                 app.add(chain.id() + " " + token.symbol() + " " + token.decimals() + " " + token.contract());
             }
         }
-        Check.that(courier.size() == 9 && app.equals(courier), "the app's token contracts and decimals are the courier's: " + app + " " + courier);
+        Check.that(courier.size() == 10 && app.equals(courier), "the app's token contracts and decimals are the courier's: " + app + " " + courier);
     }
 
     private static void bitcoin() throws Exception {

@@ -45,7 +45,7 @@ public final class MainActivity extends Activity {
     private static final int BUTTON_GAP_DP = 16; // gap between buttons
     private static final int CONFIRM_GAP_DP = 64; // gap before confirmation sections
     private static final String BOOK = "addresses";
-    private static final List<String> ASSETS = List.of("ETH", "BNB", "USDT", "USDC", "PAXG", "VTIon", "IEFAon", "IEMGon", "NVDAon");
+    private static final List<String> ASSETS = List.of("ETH", "BNB", "USDT", "USDC", "EURC", "PAXG", "VTIon", "IEFAon", "IEMGon", "NVDAon");
 
     // Executor services for handling USB and network operations.
     private final ExecutorService usbThread = Executors.newSingleThreadExecutor();

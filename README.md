@@ -51,8 +51,8 @@ Read these in full:
 
 `android/src/dev/txcourier/core/` is plain Java with nothing from Android: the transaction record the
 app hands the courier, the courier's wire protocol, and the fee and publish logic. The record names
-the asset (ETH, BNB, USDT, USDC, or on Ethereum PAXG and the Ondo tokenized stocks VTIon, IEFAon,
-IEMGon and NVDAon) and the chain. The courier looks that pair up in its own built-in list, `crates/protocol/src/token/known.rs`, builds the actual transaction with its own Rust
+the asset (ETH, BNB, USDT, USDC, or on Ethereum EURC, PAXG and the Ondo tokenized stocks VTIon,
+IEFAon, IEMGon and NVDAon) and the chain. The courier looks that pair up in its own built-in list, `crates/protocol/src/token/known.rs`, builds the actual transaction with its own Rust
 code, and the Ledger shows what it signs. Compare the contract addresses in that list with each
 issuer's site or the block explorer: the Ledger rejects a forged descriptor, but a genuine one for
 the wrong contract would pass. A Bitcoin record instead names your address, the one coin to spend,

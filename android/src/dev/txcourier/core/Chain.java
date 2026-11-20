@@ -11,6 +11,7 @@ public record Chain(long id, String name, String symbol, List<String> rpc, Strin
                     "https://etherscan.io/tx/",
                     List.of(new Token("USDT", "0xdAC17F958D2ee523a2206206994597C13D831ec7", 6),
                             new Token("USDC", "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", 6),
+                            new Token("EURC", "0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c", 6),
                             new Token("PAXG", "0x45804880De22913dAFE09f4980848ECE6EcbAf78", 18),
                             new Token("VTIon", "0x57B392146848C6321bb2A3D4358DF1bDEACdc62A", 18),
                             new Token("IEFAon", "0xFEFf7a377A86462F5a2A872009722C154707F09e", 18),
