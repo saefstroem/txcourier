@@ -288,6 +288,7 @@ mod tests {
         );
         assert_eq!(paid(&with(NATIVE_RECORD, 56, b"BNB", 1, 18)), 1);
         assert_eq!(paid(&with(TOKEN_RECORD, 1, b"USDC", 1, 0)), 1_000_000);
+        assert_eq!(paid(&with(TOKEN_RECORD, 1, b"EURC", 1, 0)), 1_000_000);
         assert_eq!(paid(&with(TOKEN_RECORD, 56, b"USDC", 1, 0)), ONE_ETHER);
         assert_eq!(paid(&with(TOKEN_RECORD, 1, b"PAXG", 25, 2)), ONE_ETHER / 4);
     }
@@ -318,6 +319,7 @@ mod tests {
         let unknown = [
             with(NATIVE_RECORD, 1, b"BNB", 1, 0),
             with(NATIVE_RECORD, 56, b"ETH", 1, 0),
+            with(NATIVE_RECORD, 56, b"EURC", 1, 0),
             with(NATIVE_RECORD, 8453, b"ETH", 1, 0),
             with(NATIVE_RECORD, 1, b"eth", 1, 0),
             with(NATIVE_RECORD, 1, b"DAI", 1, 0),
